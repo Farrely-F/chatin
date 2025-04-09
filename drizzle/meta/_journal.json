@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1744173152366,
+      "tag": "0000_init-pgvector",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1744173461607,
+      "tag": "0001_yellow_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1744180954670,
+      "tag": "0002_thin_paper_doll",
+      "breakpoints": true
+    }
+  ]
+}
