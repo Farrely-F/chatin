@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -71,19 +72,28 @@ export const knowledgeBases = pgTable("knowledge_bases", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
-export const chunkEmbeddings = pgTable("chunk_embeddings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  knowledgeBaseId: uuid("knowledge_base_id")
-    .notNull()
-    .references(() => knowledgeBases.id, { onDelete: "cascade" }),
-  agentId: uuid("agent_id")
-    .notNull()
-    .references(() => agents.id, { onDelete: "cascade" }),
-  contentChunk: text("content_chunk"),
-  embeddingVector: vector("embedding_vector", { dimensions: 768 }).notNull(),
-  tokenCount: integer("token_count"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+export const chunkEmbeddings = pgTable(
+  "chunk_embeddings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+
+    knowledgeBaseId: uuid("knowledge_base_id")
+      .notNull()
+      .references(() => knowledgeBases.id, { onDelete: "cascade" }),
+    contentChunk: text("content_chunk").notNull(),
+    embeddingVector: vector("embedding_vector", { dimensions: 768 }).notNull(),
+    tokenCount: integer("token_count").notNull(),
+  },
+  (table) => [
+    index("embedding_vector_idx").using(
+      "ivfflat",
+      table.embeddingVector.op("vector_cosine_ops"),
+    ),
+  ],
+);
 
 export const chatSessions = pgTable("chat_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
