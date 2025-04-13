@@ -1,8 +1,8 @@
 import { db } from "@/db";
-import { chunkEmbeddings } from "@/db/schema";
+import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { generateEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
-import { chunkText } from "@/lib/text-chunker";
+import { splitIntoChunks } from "@/lib/text-chunker";
 import { NextRequest, NextResponse } from "next/server";
 
 export const POST = async (
@@ -30,7 +30,7 @@ export const POST = async (
     );
   }
 
-  const chunks = chunkText(fullText, 200);
+  const chunks = splitIntoChunks(fullText, 200);
   const results = [];
 
   for (const chunk of chunks) {

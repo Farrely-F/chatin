@@ -1,32 +1,43 @@
-// lib/vector/similarity-search.ts
 import { db } from "@/db";
-import { chunkEmbeddings } from "@/db/schema";
+import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { generateEmbeddings } from "@/lib/embedding-model";
-import { sql } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 
 export const searchSimilarChunks = async ({
   query,
   agentId,
   knowledgeBaseId,
   topK = 5,
+  similarityThreshold = 0.5,
 }: {
   query: string;
   agentId: string;
   knowledgeBaseId: string;
   topK?: number;
+  similarityThreshold?: number;
 }) => {
   const queryEmbedding = await generateEmbeddings(query);
 
+  const similarity = sql<number>`1 - (${cosineDistance(
+    chunkEmbeddings.embeddingVector,
+    queryEmbedding,
+  )})`;
+
   const results = await db
     .select({
-      contentChunk: chunkEmbeddings.contentChunk,
-      score: sql`embedding_vector <-> ${queryEmbedding}`.as("score"),
+      id: chunkEmbeddings.id,
+      content: chunkEmbeddings.contentChunk,
+      similarity,
     })
     .from(chunkEmbeddings)
     .where(
-      sql`${chunkEmbeddings.agentId} = ${agentId} AND ${chunkEmbeddings.knowledgeBaseId} = ${knowledgeBaseId}`,
+      and(
+        eq(chunkEmbeddings.agentId, agentId),
+        eq(chunkEmbeddings.knowledgeBaseId, knowledgeBaseId),
+        gt(similarity, similarityThreshold),
+      ),
     )
-    .orderBy(sql`embedding_vector <-> ${queryEmbedding}`)
+    .orderBy((t) => desc(t.similarity))
     .limit(topK);
 
   return results;

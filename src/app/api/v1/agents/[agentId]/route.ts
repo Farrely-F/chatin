@@ -1,6 +1,6 @@
 // app/api/agents/[id]/route.ts
 import { db } from "@/db";
-import { agents } from "@/db/schema";
+import { agents } from "@/db/schema/agents";
 import { agentFormSchema } from "@/schema/agent-schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";

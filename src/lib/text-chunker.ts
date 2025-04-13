@@ -1,22 +1,27 @@
-import { encode } from "gpt-3-encoder";
-
-export function chunkText(text: string, maxTokens: number): string[] {
-  const sentences = text.split(/(?<=[.?!])\s+/);
+export function splitIntoChunks(text: string, chunkSize: number): string[] {
   const chunks: string[] = [];
   let currentChunk = "";
 
-  for (const sentence of sentences) {
-    const tokenLength = encode(currentChunk + sentence).length;
+  // Split by paragraphs first
+  const paragraphs = text.split(/\n\s*\n/);
 
-    if (tokenLength > maxTokens) {
-      if (currentChunk) chunks.push(currentChunk);
-      currentChunk = sentence;
-    } else {
-      currentChunk += " " + sentence;
+  for (const paragraph of paragraphs) {
+    // If adding this paragraph would exceed chunk size, save current chunk and start new one
+    if (
+      currentChunk.length + paragraph.length > chunkSize &&
+      currentChunk.length > 0
+    ) {
+      chunks.push(currentChunk.trim());
+      currentChunk = "";
     }
+
+    currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
   }
 
-  if (currentChunk) chunks.push(currentChunk);
+  // Add the last chunk if it's not empty
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
 
-  return chunks.map((chunk) => chunk.trim());
+  return chunks;
 }

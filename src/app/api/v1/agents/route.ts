@@ -1,6 +1,6 @@
 // app/api/agents/route.ts
 import { db } from "@/db";
-import { agents } from "@/db/schema";
+import { agents } from "@/db/schema/agents";
 import { agentFormSchema } from "@/schema/agent-schema";
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";

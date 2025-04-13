@@ -24,31 +24,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import SliderControl from "@/components/ui/slider-control";
+import { Textarea } from "@/components/ui/textarea";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
+import { createNewAgent } from "@/service/agents";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 export default function AgentCreation() {
+  const { data: session } = useSession();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentFormSchema),
     defaultValues: {
       name: "",
       description: "",
-      llmProvider: "gemini",
+      llmProvider: "google",
       systemPrompt: "",
       temperature: 0.7,
     },
   });
 
-  const handleSubmit = (data: AgentFormValues) => {
-    console.log(data);
+  const createAgent = (data: AgentFormValues) => {
+    startTransition(async () => {
+      const res = await createNewAgent(data, session?.user.id || "");
+
+      if (res.error) {
+        toast.error(res.error);
+      }
+
+      form.reset();
+      setIsDialogOpen(false);
+      toast.success(res.message);
+    });
   };
 
   return (
-    <Dialog>
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="w-fit">
+        <Button variant={"gradient"} className="w-fit">
           <Plus />
           <span>Create Agent</span>
         </Button>
@@ -60,10 +79,7 @@ export default function AgentCreation() {
         </DialogHeader>
 
         <Form {...form}>
-          <form
-            className="space-y-4"
-            onSubmit={form.handleSubmit(handleSubmit)}
-          >
+          <form className="space-y-4" onSubmit={form.handleSubmit(createAgent)}>
             <FormField
               control={form.control}
               name="name"
@@ -107,9 +123,9 @@ export default function AgentCreation() {
                         <SelectValue placeholder="Select LLM Provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="gemini">Gemini</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
                         <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="claude">Claude</SelectItem>
+                        <SelectItem value="anthropic">Anthropic</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormControl>
@@ -125,7 +141,7 @@ export default function AgentCreation() {
                 <FormItem>
                   <FormLabel>System Prompt</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -139,12 +155,13 @@ export default function AgentCreation() {
                 <FormItem>
                   <FormLabel>Temperature</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="1"
+                    <SliderControl
+                      defaultValue={[0.7]}
+                      value={[field.value]}
+                      onChange={(val) => field.onChange(val[0])}
+                      minValue={0}
+                      maxValue={2}
+                      step={0.1}
                     />
                   </FormControl>
                   <FormMessage />
@@ -152,8 +169,8 @@ export default function AgentCreation() {
               )}
             />
 
-            <Button className="mt-8" type="submit">
-              Submit
+            <Button className="mt-8" type="submit" disabled={isPending}>
+              {isPending ? "Creating..." : "Create"}
             </Button>
           </form>
         </Form>

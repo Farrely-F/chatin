@@ -1,10 +1,5 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { BotMessageSquareIcon, UserCircle2Icon } from "lucide-react";
 
 type ChatMessageProps = {
   isUser?: boolean;
@@ -16,10 +11,10 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
     <article
       className={cn(
         "flex items-start gap-4 text-[15px] leading-relaxed",
-        isUser && "justify-end",
+        isUser && "flex-row-reverse",
       )}
     >
-      <Image
+      {/* <Image
         className={cn(
           "rounded-full",
           isUser ? "order-1" : "border border-black/[0.08] shadow-sm",
@@ -32,7 +27,21 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
         alt={isUser ? "User profile" : "Bart logo"}
         width={40}
         height={40}
-      />
+      /> */}
+      {isUser ? (
+        <UserCircle2Icon
+          width={40}
+          height={40}
+          strokeWidth={1.5}
+          className="size-8 min-w-8 text-muted-foreground"
+        />
+      ) : (
+        <BotMessageSquareIcon
+          width={40}
+          height={40}
+          className="size-8 min-w-8 text-muted-foreground"
+        />
+      )}
       <div
         className={cn(isUser ? "bg-muted px-4 py-3 rounded-xl" : "space-y-4")}
       >
@@ -46,26 +55,26 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
   );
 }
 
-type ActionButtonProps = {
-  icon: React.ReactNode;
-  label: string;
-};
+// type ActionButtonProps = {
+//   icon: React.ReactNode;
+//   label: string;
+// };
 
-function ActionButton({ icon, label }: ActionButtonProps) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button className="relative text-muted-foreground/80 hover:text-foreground transition-colors size-8 flex items-center justify-center before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-border first:before:hidden first-of-type:rounded-s-lg last-of-type:rounded-e-lg focus-visible:z-10 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring/70">
-          {icon}
-          <span className="sr-only">{label}</span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="dark px-2 py-1 text-xs">
-        <p>{label}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+// function ActionButton({ icon, label }: ActionButtonProps) {
+//   return (
+//     <Tooltip>
+//       <TooltipTrigger asChild>
+//         <button className="relative text-muted-foreground/80 hover:text-foreground transition-colors size-8 flex items-center justify-center before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-border first:before:hidden first-of-type:rounded-s-lg last-of-type:rounded-e-lg focus-visible:z-10 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring/70">
+//           {icon}
+//           <span className="sr-only">{label}</span>
+//         </button>
+//       </TooltipTrigger>
+//       <TooltipContent side="bottom" className="dark px-2 py-1 text-xs">
+//         <p>{label}</p>
+//       </TooltipContent>
+//     </Tooltip>
+//   );
+// }
 
 function MessageActions() {
   return (

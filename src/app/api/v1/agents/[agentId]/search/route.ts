@@ -1,6 +1,6 @@
 // src/app/api/agents/[agentId]/search/route.ts
 import { db } from "@/db";
-import { chunkEmbeddings } from "@/db/schema";
+import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { generateEmbeddings } from "@/lib/embedding-model";
 import { and, eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
