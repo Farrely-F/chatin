@@ -1,14 +1,15 @@
 import { auth } from "@/lib/auth/auth";
 import { verifyJWT } from "@/lib/jwt";
+import { getLLMProvider } from "@/lib/llm";
 import { searchSimilarChunks } from "@/lib/similarity-search";
 import { getAgentById } from "@/service/agents";
-import { getAllKnowledgeBases } from "@/service/knowledgebases";
-import { google } from "@ai-sdk/google";
+import {
+  getAllKnowledgeBases,
+  getAllKnowledgeChunks,
+} from "@/service/knowledgebases";
 import { streamText, tool } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-
-const model = google("gemini-2.0-flash-001");
 
 export async function POST(
   req: NextRequest,
@@ -30,18 +31,11 @@ export async function POST(
     }
   }
 
-  const { messages, top_k = 5, user_id } = body;
+  const { messages, user_id } = body;
   const { agentId } = await params;
 
   if (!user_id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 400 });
-  }
-
-  if (!messages) {
-    return NextResponse.json(
-      { error: "Missing query or knowledgeBaseId" },
-      { status: 400 },
-    );
   }
 
   const agentConfig = await getAgentById(agentId, user_id || "");
@@ -49,6 +43,15 @@ export async function POST(
 
   if ("error" in agentConfig) {
     return NextResponse.json({ error: agentConfig.error }, { status: 400 });
+  }
+
+  const model = getLLMProvider(agentConfig.llmProvider);
+
+  if (!messages) {
+    return NextResponse.json(
+      { error: "Missing query or knowledgeBaseId" },
+      { status: 400 },
+    );
   }
 
   // 3. Stream answer from LLM
@@ -78,10 +81,22 @@ export async function POST(
             query: messages[messages.length - 1].content,
             agentId,
             knowledgeBaseId: relatedKnowledgeBase.id,
-            topK: top_k,
+            topK: agentConfig.topK || 5,
             similarityThreshold: agentConfig.similarityThreshold || 0.5,
           });
           console.log("calling tools");
+          return context;
+        },
+      }),
+      retrieve_whole_knowledge_base: tool({
+        description:
+          "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization, translation, etc.",
+        parameters: z.object({}),
+        execute: async () => {
+          const context = await getAllKnowledgeChunks(
+            agentId,
+            relatedKnowledgeBase.id,
+          );
           return context;
         },
       }),

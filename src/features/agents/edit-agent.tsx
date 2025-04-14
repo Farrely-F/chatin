@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
@@ -45,10 +46,10 @@ export default function EditAgenConfig({
       description: agentDetails.description || "",
       llmProvider: agentDetails.llmProvider,
       systemPrompt: agentDetails.systemPrompt || "",
-      temperature: agentDetails.temperature || 0.7,
-      similarityThreshold: agentDetails.similarityThreshold || 0.5,
-      topK: agentDetails.topK || 5,
-      topP: agentDetails.topP || 1,
+      temperature: agentDetails.temperature,
+      similarityThreshold: agentDetails.similarityThreshold,
+      topK: agentDetails.topK,
+      topP: agentDetails.topP,
     },
   });
 
@@ -141,6 +142,8 @@ export default function EditAgenConfig({
           )}
         />
 
+        <Separator className="my-4" />
+
         <FormField
           control={form.control}
           name="temperature"
@@ -182,7 +185,7 @@ export default function EditAgenConfig({
                       ? [agentDetails.similarityThreshold]
                       : [0.5]
                   }
-                  value={[field.value]}
+                  value={[field.value!]}
                   onChange={(val) => field.onChange(val[0])}
                   minValue={0}
                   maxValue={1}
@@ -207,7 +210,7 @@ export default function EditAgenConfig({
               <FormControl>
                 <SliderControl
                   defaultValue={agentDetails.topK ? [agentDetails.topK] : [5]}
-                  value={[field.value]}
+                  value={[field.value!]}
                   onChange={(val) => field.onChange(val[0])}
                   minValue={0}
                   maxValue={10}
@@ -231,7 +234,7 @@ export default function EditAgenConfig({
               <FormControl>
                 <SliderControl
                   defaultValue={agentDetails.topP ? [agentDetails.topP] : [1]}
-                  value={[field.value]}
+                  value={[field.value!]}
                   onChange={(val) => field.onChange(val[0])}
                   minValue={0.1}
                   maxValue={1}

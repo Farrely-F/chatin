@@ -37,7 +37,7 @@ export default async function AgentPage() {
   const user = await getCurrentUser();
 
   const agents = await getAllAgents(user?.id || "").then((res) =>
-    res.map((agent) => ({
+    res?.map((agent) => ({
       ...agent,
       color: providerColorMap[agent.llmProvider].color || "blue",
       icon: providerColorMap[agent.llmProvider].icon,
@@ -51,7 +51,7 @@ export default async function AgentPage() {
         <AgentCreation />
       </PageLayoutHeader>
       <PageLayoutContent>
-        {agents.length === 0 ? (
+        {agents?.length === 0 ? (
           <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%]">
             <BotIcon className="text-muted-foreground block size-18" />
             <p className="text-muted-foreground text-sm">
@@ -60,7 +60,7 @@ export default async function AgentPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-3 gap-4 items-stretch">
-            {agents.map((agent) => (
+            {agents?.map((agent) => (
               <Link href={`/dashboard/agents/${agent.id}`} key={agent.id}>
                 <PulseCard
                   actionButton={

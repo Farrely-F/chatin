@@ -1,4 +1,5 @@
 import { AnimatedCard } from "@/components/ui/animated-card";
+import { Badge } from "@/components/ui/badge";
 import { Anthropic, Google, OpenAI } from "@/components/ui/icons/llm-provider";
 import {
   PageLayout,
@@ -9,6 +10,7 @@ import { VerticalSeparator } from "@/components/ui/separator";
 import AgentDetailView from "@/features/agents/agent-details";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 const agentConfig = {
@@ -60,9 +62,23 @@ export default async function AgentDetailPage({
         </div>
       </PageLayoutHeader>
       <PageLayoutContent>
+        <div className="flex items-center gap-2 mb-4 text-xs">
+          <Badge variant={"secondary"}>
+            <span
+              className={`size-2 aspect-square rounded-full ${agentDetails.status === "active" ? "bg-green-200" : "bg-yellow-200"}`}
+            ></span>{" "}
+            {agentDetails.status}
+          </Badge>
+          <Badge variant={"secondary"}>
+            knowledgebase: {agentDetails.knowledgeBases.length}
+          </Badge>
+          <Badge asChild variant={"secondary"}>
+            <Link href={`/chat/${agentDetails.slug}`}>visit</Link>
+          </Badge>
+        </div>
         {agentDetails.description && (
           <AnimatedCard
-            title="Model Description"
+            title="Agent Description"
             description={agentDetails.description!}
           />
         )}

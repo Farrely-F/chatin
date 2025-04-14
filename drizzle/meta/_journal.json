@@ -64,6 +64,41 @@
       "when": 1744524510553,
       "tag": "0008_modify-agent-config",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1744603427102,
+      "tag": "0009_adding-personas-table",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1744603545746,
+      "tag": "0010_adding-personas-table",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1744604199930,
+      "tag": "0011_create-type-for-personas",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1744604326036,
+      "tag": "0012_create-type-for-personas",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1744604840215,
+      "tag": "0013_alter-table-agents-slug",
+      "breakpoints": true
     }
   ]
 }

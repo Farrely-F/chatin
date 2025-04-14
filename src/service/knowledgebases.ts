@@ -83,4 +83,28 @@ export async function similaritySearch(
   return contextText;
 }
 
+export async function getAllKnowledgeChunks(
+  agentId: string,
+  knowledgeBaseId: string,
+) {
+  const res = await db
+    .select({
+      id: chunkEmbeddings.id,
+      content: chunkEmbeddings.contentChunk,
+    })
+    .from(chunkEmbeddings)
+    .where(
+      and(
+        eq(chunkEmbeddings.agentId, agentId),
+        eq(chunkEmbeddings.knowledgeBaseId, knowledgeBaseId),
+      ),
+    );
+
+  if (!res.length) {
+    return [];
+  }
+
+  return res;
+}
+
 export type KnowledgeBase = typeof knowledgeBases.$inferSelect;
