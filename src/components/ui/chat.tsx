@@ -5,9 +5,11 @@ import EditAgentDialog from "@/features/chat-playground/edit-agent-config";
 import { AgentDetails } from "@/service/agents";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { StopCircle } from "lucide-react";
 import { useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { ChatMessage } from "./chat-message";
@@ -34,7 +36,7 @@ export default function Chat({
     },
   });
 
-  const { messages, handleSubmit, append, status } = useChat({
+  const { messages, handleSubmit, append, status, stop } = useChat({
     api: `/api/v1/agents/${agentDetails.id}/ask`,
     body: {
       user_id: userId,
@@ -60,6 +62,12 @@ export default function Chat({
       });
     });
   };
+
+  useEffect(() => {
+    if (status === "error") {
+      toast.error("Something went wrong. Please try again.");
+    }
+  }, [status]);
 
   return (
     <>
@@ -111,6 +119,10 @@ export default function Chat({
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
+                          if (status !== "ready") {
+                            stop();
+                            return;
+                          }
                           form.handleSubmit(handleMessageSubmit)();
                         }
                       }}
@@ -119,12 +131,20 @@ export default function Chat({
                 />
                 <div className="flex items-center justify-end gap-2 p-3">
                   <Button
-                    disabled={status === "streaming" || status === "submitted"}
-                    type="submit"
+                    // disabled={status === "streaming" || status === "submitted"}
+                    type={status === "streaming" ? "button" : "submit"}
                     variant="gradient"
                     className="rounded-full h-8"
+                    onClick={() => (status !== "ready" ? stop() : null)}
                   >
-                    Submit
+                    {status === "streaming" ? (
+                      <>
+                        <StopCircle />
+                        Stop
+                      </>
+                    ) : (
+                      "Submit"
+                    )}
                   </Button>
                 </div>
               </form>

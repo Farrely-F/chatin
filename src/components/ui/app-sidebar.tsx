@@ -20,6 +20,7 @@ import {
   Home,
   MessageCircleMore,
   SendIcon,
+  UserPen,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
@@ -42,6 +43,12 @@ const data = {
           title: "Agents",
           url: "/dashboard/agents",
           icon: Bot,
+          disabled: false,
+        },
+        {
+          title: "Personas",
+          url: "/dashboard/personas",
+          icon: UserPen,
           disabled: false,
         },
       ],
