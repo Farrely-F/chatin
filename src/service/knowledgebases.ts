@@ -83,22 +83,14 @@ export async function similaritySearch(
   return contextText;
 }
 
-export async function getAllKnowledgeChunks(
-  agentId: string,
-  knowledgeBaseId: string,
-) {
+export async function getAllKnowledgeChunks(agentId: string) {
   const res = await db
     .select({
       id: chunkEmbeddings.id,
       content: chunkEmbeddings.contentChunk,
     })
     .from(chunkEmbeddings)
-    .where(
-      and(
-        eq(chunkEmbeddings.agentId, agentId),
-        eq(chunkEmbeddings.knowledgeBaseId, knowledgeBaseId),
-      ),
-    );
+    .where(and(eq(chunkEmbeddings.agentId, agentId)));
 
   if (!res.length) {
     return [];

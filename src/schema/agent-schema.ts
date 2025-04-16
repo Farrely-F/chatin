@@ -22,6 +22,7 @@ export const agentFormSchema = z.object({
   similarityThreshold: z.coerce.number().min(0).max(1).optional(),
   topK: z.coerce.number().min(1).optional(),
   topP: z.coerce.number().min(0.1).max(1).optional(),
+  personaId: z.string().optional(),
 });
 
 export type AgentFormValues = z.infer<typeof agentFormSchema>;

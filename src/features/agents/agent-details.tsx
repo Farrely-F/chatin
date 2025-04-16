@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AgentDetails } from "@/service/agents";
 import { KnowledgeBase } from "@/service/knowledgebases";
+import { PersonaDetails } from "@/service/personas";
 import { EditIcon, FlaskConical, LucideBookCopy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import UploadKnowledgeForm from "../knowledgebases/upload-knowledgebase";
 import AgentKnowledgebases from "./agent-knowledgebases";
+import DeployAgent from "./deploy-agent";
 import EditAgenConfig from "./edit-agent";
 
 const agentMenu = [
@@ -28,10 +30,12 @@ const agentMenu = [
 export default function AgentDetailView({
   agentDetails,
   agentKnowledgeBases,
+  personas,
   userId,
 }: {
   agentDetails: AgentDetails;
   agentKnowledgeBases: KnowledgeBase[];
+  personas: PersonaDetails[];
   userId: string;
 }) {
   const [selectedMenu, setSelectedMenu] = useState(agentMenu[0].id);
@@ -53,7 +57,7 @@ export default function AgentDetailView({
             <p className="text-sm">{menu.label}</p>
           </button>
         ))}
-        <div className="p-2 mt-auto">
+        <div className="p-2">
           <Button asChild variant={"outline"}>
             <Link
               href={`/dashboard/agents/${agentDetails.id}/chat`}
@@ -64,10 +68,21 @@ export default function AgentDetailView({
             </Link>
           </Button>
         </div>
+        <div className="p-2">
+          <DeployAgent
+            agentId={agentDetails.id}
+            agentStatus={agentDetails.status}
+            userId={userId}
+          />
+        </div>
       </ScrollArea>
       <div className="bg-gray-100 sm:col-span-6 rounded-lg p-4 overflow-y-auto">
         {selectedMenu === "agent-details" ? (
-          <EditAgenConfig agentDetails={agentDetails} userId={userId} />
+          <EditAgenConfig
+            agentDetails={agentDetails}
+            userId={userId}
+            personas={personas}
+          />
         ) : agentKnowledgeBases.length === 0 ? (
           <UploadKnowledgeForm agentId={agentDetails.id} userId={userId} />
         ) : (

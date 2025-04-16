@@ -28,7 +28,6 @@ export default function DeleteKnowledgeBase({
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = (e: React.MouseEvent) => {
-    console.log("triggered");
     e.stopPropagation();
     startTransition(async () => {
       const res = await deleteKnowledgeBaseById(

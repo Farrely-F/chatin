@@ -10,6 +10,7 @@ import { VerticalSeparator } from "@/components/ui/separator";
 import AgentDetailView from "@/features/agents/agent-details";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
+import { getAllPersonas } from "@/service/personas";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -36,7 +37,12 @@ export default async function AgentDetailPage({
   const { agentId } = await params;
   const user = await getCurrentUser();
 
+  if (!user) {
+    return;
+  }
+
   const agentDetails = await getAgentWithKnowledgeBase(agentId, user?.id || "");
+  const personas = await getAllPersonas(user?.id || "");
 
   if ("error" in agentDetails) {
     notFound();
@@ -63,17 +69,19 @@ export default async function AgentDetailPage({
       </PageLayoutHeader>
       <PageLayoutContent>
         <div className="flex items-center gap-2 mb-4 text-xs">
-          <Badge variant={"secondary"}>
-            <span
-              className={`size-2 aspect-square rounded-full ${agentDetails.status === "active" ? "bg-green-200" : "bg-yellow-200"}`}
-            ></span>{" "}
-            {agentDetails.status}
+          <Badge asChild variant={"secondary"}>
+            <Link href={`/chat/${agentDetails.slug}`}>
+              <span
+                className={`size-2 aspect-square rounded-full ${agentDetails.status === "active" ? "bg-green-200" : "bg-yellow-200"}`}
+              ></span>{" "}
+              {agentDetails.status}
+            </Link>
           </Badge>
           <Badge variant={"secondary"}>
             knowledgebase: {agentDetails.knowledgeBases.length}
           </Badge>
-          <Badge asChild variant={"secondary"}>
-            <Link href={`/chat/${agentDetails.slug}`}>visit</Link>
+          <Badge variant={"secondary"}>
+            persona: {agentDetails?.personas?.name || "None"}
           </Badge>
         </div>
         {agentDetails.description && (
@@ -86,6 +94,7 @@ export default async function AgentDetailPage({
           agentDetails={agentDetails}
           userId={user?.id || ""}
           agentKnowledgeBases={agentDetails.knowledgeBases}
+          personas={personas}
         />
       </PageLayoutContent>
     </PageLayout>

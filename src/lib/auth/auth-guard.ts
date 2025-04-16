@@ -6,7 +6,7 @@ export async function requireAuth(redirectTo: string = "/login") {
   const session = await auth();
 
   if (!session?.user) {
-    redirect(redirectTo);
+    return redirect(redirectTo);
   }
 
   return session.user;

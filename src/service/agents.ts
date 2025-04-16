@@ -51,6 +51,29 @@ export async function getAgentById(id: string, userId: string) {
   }
 }
 
+export async function getAgentBySlug(slug: string) {
+  try {
+    const [res] = await db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.slug, slug), eq(agents.status, "active")))
+      .limit(1);
+
+    if (!res) {
+      return {
+        error: "Agent not found",
+      };
+    }
+
+    return res;
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Error fetching agent",
+    };
+  }
+}
+
 export async function createNewAgent(data: AgentFormValues, userId: string) {
   const slug = slugify(data.name);
 
@@ -90,10 +113,13 @@ export async function updateAgentById(
   data: AgentFormValues,
 ) {
   try {
+    const personaId = data.personaId ? data.personaId : null;
+
     await db
       .update(agents)
       .set({
         ...data,
+        personaId,
       })
       .where(and(eq(agents.userId, userId), eq(agents.id, agentId)));
 
@@ -168,4 +194,55 @@ export async function getAgentWithKnowledgeBase(
   }
 }
 
+export async function changeAgentStatus(
+  agentId: string,
+  userId: string,
+  currentStatus: "active" | "archived",
+) {
+  const status = currentStatus === "active" ? "archived" : "active";
+
+  try {
+    await db
+      .update(agents)
+      .set({ status })
+      .where(and(eq(agents.userId, userId), eq(agents.id, agentId)));
+
+    revalidatePath(`/dashboard/agents/${agentId}`);
+
+    return {
+      message: "Successfully updated the agent status",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
+export async function getDeployedAgentBySlug(slug: string) {
+  try {
+    const agent = await db.query.agents.findFirst({
+      where: (agents, { eq, and }) =>
+        and(eq(agents.slug, slug), eq(agents.status, "active")),
+      with: {
+        knowledgeBases: true,
+        personas: true,
+      },
+    });
+
+    if (!agent) {
+      return { error: "Agent not found" };
+    }
+
+    return agent;
+  } catch (error) {
+    console.error("Error fetching agent with knowledge base:", error);
+    return { error: "Error fetching data" };
+  }
+}
+
 export type AgentDetails = typeof agents.$inferSelect;
+export type AgentWithKnowledgeBase = Awaited<
+  ReturnType<typeof getAgentWithKnowledgeBase>
+>;

@@ -70,6 +70,12 @@ const data = {
           icon: MessageCircleMore,
           disabled: true,
         },
+        {
+          title: "Widget",
+          url: "",
+          icon: MessageCircleMore,
+          disabled: true,
+        },
       ],
     },
     {

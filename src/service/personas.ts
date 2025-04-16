@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { personas } from "@/db/schema";
+import { agents, personas } from "@/db/schema";
 import { CreatePersonaSchema } from "@/schema/persona-schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -57,6 +57,31 @@ export async function createAgentPersona(
   };
 }
 
+export async function editAgentPersona(
+  personaId: string,
+  userId: string,
+  data: CreatePersonaSchema,
+) {
+  try {
+    await db
+      .update(personas)
+      .set({ ...data })
+      .where(and(eq(personas.id, personaId), eq(personas.userId, userId)));
+
+    revalidatePath(`/dashboard/personas/${personaId}`);
+    revalidatePath("/dashboard/agents");
+
+    return {
+      message: "Successfully updated the persona",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
 export async function deletePersona(userId: string, personaId: string) {
   try {
     await db
@@ -74,6 +99,15 @@ export async function deletePersona(userId: string, personaId: string) {
       error: "Cannot process your request",
     };
   }
+}
+
+export async function allAgentByPersonaId(userId: string, personaId: string) {
+  const res = await db
+    .select()
+    .from(agents)
+    .where(and(eq(agents.userId, userId), eq(agents.personaId, personaId)));
+
+  return res || [];
 }
 
 export type PersonaDetails = typeof personas.$inferSelect;

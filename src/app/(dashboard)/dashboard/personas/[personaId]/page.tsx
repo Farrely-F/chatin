@@ -1,4 +1,5 @@
 import { AnimatedCard } from "@/components/ui/animated-card";
+import { Badge } from "@/components/ui/badge";
 import {
   PageLayout,
   PageLayoutContent,
@@ -7,8 +8,7 @@ import {
 import { VerticalSeparator } from "@/components/ui/separator";
 import PersonaDetailsView from "@/features/personas/persona-details";
 import { getCurrentUser } from "@/lib/auth/auth";
-import { getAllAgents } from "@/service/agents";
-import { getPersonaById } from "@/service/personas";
+import { allAgentByPersonaId, getPersonaById } from "@/service/personas";
 import { notFound } from "next/navigation";
 
 export default async function PersonaPage({
@@ -19,8 +19,13 @@ export default async function PersonaPage({
   const { personaId } = await params;
 
   const user = await getCurrentUser();
+
+  if (!user) {
+    return;
+  }
+
   const personaDetails = await getPersonaById(personaId, user?.id || "");
-  const agents = (await getAllAgents(user?.id || "")) || [];
+  const relatedAgents = await allAgentByPersonaId(user?.id || "", personaId);
 
   if ("error" in personaDetails) {
     notFound();
@@ -40,6 +45,9 @@ export default async function PersonaPage({
         </div>
       </PageLayoutHeader>
       <PageLayoutContent>
+        <Badge className="mb-4" variant={"secondary"}>
+          Related Agents: {relatedAgents.length}
+        </Badge>
         {personaDetails.description && (
           <AnimatedCard
             title="Persona Description"
@@ -49,7 +57,6 @@ export default async function PersonaPage({
         <PersonaDetailsView
           personaDetails={personaDetails}
           userId={user?.id || ""}
-          agents={agents}
         />
       </PageLayoutContent>
     </PageLayout>

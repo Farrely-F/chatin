@@ -12,6 +12,7 @@ const inputVariants = cva(
     variants: {
       variant: {
         default: "bg-background text-foreground",
+        dark: "dark bg-background/10 border-white/10 text-foreground",
       },
     },
     defaultVariants: {

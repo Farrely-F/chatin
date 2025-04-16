@@ -1,6 +1,5 @@
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { NextAuthOptions } from "next-auth";
@@ -8,10 +7,11 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { signJWT } from "../jwt";
+import { DrizzleAdapter } from "./drizzle-adapter";
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-  adapter: DrizzleAdapter(db),
+  adapter: DrizzleAdapter(),
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60,
@@ -67,16 +67,12 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        const [existingUser] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, user.email as string));
+        const allowedDomains = ["bdn.id", "sltr.id"];
+        const emailDomain = user.email?.split("@")[1];
 
-        if (existingUser) {
-          return true;
+        if (!emailDomain || !allowedDomains.includes(emailDomain)) {
+          throw Error("Access denied");
         }
-
-        return false;
       }
 
       return true;

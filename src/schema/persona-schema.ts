@@ -10,4 +10,17 @@ export const createPersonaSchema = z.object({
   defaultLanguage: z.enum(["english", "indonesia"]),
 });
 
+export const assignPersonaToAgentSchema = z.object({
+  personaId: z
+    .array(
+      z.object({
+        label: z.string(),
+        value: z.string(),
+        disable: z.boolean().optional(),
+      }),
+    )
+    .min(1),
+});
+
 export type CreatePersonaSchema = z.infer<typeof createPersonaSchema>;
+export type AssignPersonaSchema = z.infer<typeof assignPersonaToAgentSchema>;
