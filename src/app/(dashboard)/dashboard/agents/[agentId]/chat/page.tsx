@@ -5,6 +5,7 @@ import {
 } from "@/components/ui/layout/page-layout";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentById } from "@/service/agents";
+import { getAllPersonas } from "@/service/personas";
 import { notFound } from "next/navigation";
 
 export default async function PlayGroundChatPage({
@@ -21,6 +22,7 @@ export default async function PlayGroundChatPage({
   }
 
   const agentConfig = await getAgentById(agentId, user.id);
+  const personas = await getAllPersonas(user.id);
 
   if ("error" in agentConfig) {
     notFound();
@@ -29,7 +31,7 @@ export default async function PlayGroundChatPage({
   return (
     <PageLayout>
       <PageLayoutContent className="py-0">
-        <Chat agentDetails={agentConfig} userId={user.id} />
+        <Chat personas={personas} agentDetails={agentConfig} userId={user.id} />
       </PageLayoutContent>
     </PageLayout>
   );

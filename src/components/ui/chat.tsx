@@ -3,9 +3,11 @@
 import { Button } from "@/components/ui/button";
 import EditAgentDialog from "@/features/chat-playground/edit-agent-config";
 import { AgentDetails } from "@/service/agents";
+import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { StopCircle } from "lucide-react";
+import { LucideCircleArrowOutDownLeft, StopCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
@@ -21,11 +23,14 @@ const formSchema = z.object({
 
 export default function Chat({
   agentDetails,
+  personas,
   userId,
 }: {
   agentDetails: AgentDetails;
+  personas: PersonaDetails[];
   userId: string;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +42,7 @@ export default function Chat({
   });
 
   const { messages, handleSubmit, append, status, stop } = useChat({
-    api: `/api/v1/agents/${agentDetails.id}/ask`,
+    api: `/api/v1/agents/${agentDetails.id}/playground`,
     body: {
       user_id: userId,
     },
@@ -74,8 +79,14 @@ export default function Chat({
       {/* Header */}
       <div className="py-5 bg-background sticky top-0 z-10 before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-gradient-to-r before:from-black/[0.06] before:via-black/10 before:to-black/[0.06]">
         <div className="flex items-center justify-between gap-2">
-          <h1>{agentDetails.name} Playground</h1>
+          <div className="flex items-center gap-1">
+            <Button variant={"ghost"} onClick={() => router.back()}>
+              <LucideCircleArrowOutDownLeft />
+            </Button>
+            <h1>{agentDetails.name} Playground</h1>
+          </div>
           <EditAgentDialog
+            personas={personas}
             disabled={isPending}
             agentDetails={agentDetails}
             userId={userId}
@@ -131,7 +142,6 @@ export default function Chat({
                 />
                 <div className="flex items-center justify-end gap-2 p-3">
                   <Button
-                    // disabled={status === "streaming" || status === "submitted"}
                     type={status === "streaming" ? "button" : "submit"}
                     variant="gradient"
                     className="rounded-full h-8"

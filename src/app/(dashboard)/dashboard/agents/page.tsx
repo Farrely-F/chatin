@@ -36,6 +36,10 @@ const providerColorMap = {
 export default async function AgentPage() {
   const user = await getCurrentUser();
 
+  if (!user) {
+    return;
+  }
+
   const agents = await getAllAgents(user?.id || "").then((res) =>
     res?.map((agent) => ({
       ...agent,

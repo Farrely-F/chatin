@@ -6,13 +6,11 @@ import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 export const searchSimilarChunks = async ({
   query,
   agentId,
-  knowledgeBaseId,
   topK = 5,
   similarityThreshold = 0.5,
 }: {
   query: string;
   agentId: string;
-  knowledgeBaseId: string;
   topK?: number;
   similarityThreshold?: number;
 }) => {
@@ -33,7 +31,6 @@ export const searchSimilarChunks = async ({
     .where(
       and(
         eq(chunkEmbeddings.agentId, agentId),
-        eq(chunkEmbeddings.knowledgeBaseId, knowledgeBaseId),
         gt(similarity, similarityThreshold),
       ),
     )

@@ -21,19 +21,29 @@ import {
 import { Separator } from "@/components/ui/separator";
 import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
 import { type AgentDetails, updateAgentById } from "@/service/agents";
+import { PersonaDetails } from "@/service/personas";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Delete, Speech } from "lucide-react";
+import Link from "next/link";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 export default function EditAgenConfig({
   agentDetails,
+  personas,
   userId,
   callback,
 }: {
   agentDetails: AgentDetails;
+  personas: PersonaDetails[];
   userId: string;
   callback?: () => void;
 }) {
@@ -50,6 +60,7 @@ export default function EditAgenConfig({
       similarityThreshold: agentDetails.similarityThreshold,
       topK: agentDetails.topK,
       topP: agentDetails.topP,
+      personaId: agentDetails.personaId || undefined,
     },
   });
 
@@ -70,6 +81,92 @@ export default function EditAgenConfig({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(editAgent)} className="space-y-2">
+        <FormField
+          control={form.control}
+          name="personaId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Agent Persona</FormLabel>
+              <FormControl>
+                <div className="flex items-center gap-2">
+                  <Select
+                    {...field}
+                    defaultValue={
+                      agentDetails.personaId ? agentDetails?.personaId : ""
+                    }
+                    onValueChange={field.onChange}
+                    disabled={personas.length === 0}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          personas.length === 0
+                            ? "No persona can be found"
+                            : "Select Persona to Assign"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {personas?.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {field.value && (
+                    <div className="flex items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size={"icon"}
+                            type="button"
+                            variant={"destructive"}
+                            onClick={() => field.onChange("")}
+                          >
+                            <Delete />
+                            <span className="sr-only">Clear</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="dark px-2 py-1 text-xs"
+                        >
+                          <p>Clear Persona</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size={"icon"}
+                            type="button"
+                            variant={"outline"}
+                            asChild
+                          >
+                            <Link href={`/dashboard/personas/${field.value}`}>
+                              <Speech />
+                              <span className="sr-only">Agent Details</span>
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="dark px-2 py-1 text-xs"
+                        >
+                          <p>Persona Details</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Separator className="my-4" />
+
         <FormField
           control={form.control}
           name="name"

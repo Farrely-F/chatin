@@ -2,27 +2,29 @@ import { auth } from "@/lib/auth/auth";
 import { verifyJWT } from "@/lib/jwt";
 import { getLLMProvider } from "@/lib/llm";
 import { searchSimilarChunks } from "@/lib/similarity-search";
-import { getAgentById } from "@/service/agents";
-import {
-  getAllKnowledgeBases,
-  getAllKnowledgeChunks,
-} from "@/service/knowledgebases";
+import { getAgentWithKnowledgeBase } from "@/service/agents";
+import { getAllKnowledgeChunks } from "@/service/knowledgebases";
 import { streamText, tool } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+
+const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN!;
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> },
 ) {
   const body = await req.json();
+  const host = req.headers.get("host");
 
   const session = await auth();
 
-  if (!session?.user) {
+  if (!session?.user || !host?.includes(AUHTORIZED_DOMAIN)) {
     const token = req.headers.get("Authorization")?.split("Bearer ")[1];
 
-    console.log(token);
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const isValidToken = await verifyJWT(token || "");
 
@@ -38,8 +40,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 400 });
   }
 
-  const agentConfig = await getAgentById(agentId, user_id || "");
-  const [relatedKnowledgeBase] = await getAllKnowledgeBases(agentId);
+  const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id || "");
 
   if ("error" in agentConfig) {
     return NextResponse.json({ error: agentConfig.error }, { status: 400 });
@@ -66,8 +67,20 @@ export async function POST(
     
     System Information:
     - Agent Name: ${agentConfig.name}
-    - Agent ID: ${agentConfig.id}
-    - Knowledge Base ID: ${relatedKnowledgeBase?.id || "No knowledge base"}
+
+    Persona:
+    ${
+      agentConfig?.personas
+        ? `
+      - Sex: ${agentConfig?.personas?.sex}
+      - Answer Preference: ${agentConfig?.personas?.answerPreference}
+      - Formality: ${agentConfig?.personas?.formality}
+      - Emoji Usage: ${agentConfig?.personas?.emojiUsage}
+      - Default Language: ${agentConfig?.personas?.defaultLanguage}
+      `
+        : "No Persona Attached"
+    } 
+
     `,
     messages,
     temperature: agentConfig.temperature || 0.7,
@@ -80,7 +93,6 @@ export async function POST(
           const context = await searchSimilarChunks({
             query: messages[messages.length - 1].content,
             agentId,
-            knowledgeBaseId: relatedKnowledgeBase.id,
             topK: agentConfig.topK || 5,
             similarityThreshold: agentConfig.similarityThreshold || 0.5,
           });
@@ -93,10 +105,7 @@ export async function POST(
           "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization, translation, etc.",
         parameters: z.object({}),
         execute: async () => {
-          const context = await getAllKnowledgeChunks(
-            agentId,
-            relatedKnowledgeBase.id,
-          );
+          const context = await getAllKnowledgeChunks(agentId);
           return context;
         },
       }),

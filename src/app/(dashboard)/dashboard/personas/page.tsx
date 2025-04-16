@@ -14,6 +14,10 @@ import Link from "next/link";
 export default async function PersonasPage() {
   const user = await getCurrentUser();
 
+  if (!user) {
+    return;
+  }
+
   const personas = await getAllPersonas(user?.id || "");
 
   return (
@@ -23,7 +27,7 @@ export default async function PersonasPage() {
         <PersonaCreation userId={user?.id || ""} />
       </PageLayoutHeader>
       <PageLayoutContent>
-        {personas.length === 0 ? (
+        {personas?.length === 0 ? (
           <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%]">
             <UserPenIcon className="text-muted-foreground block size-18" />
             <p className="text-muted-foreground text-sm">

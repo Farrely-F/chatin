@@ -5,9 +5,9 @@ export const POST = async (
   req: NextRequest,
   { params }: { params: { agentId: string } },
 ) => {
-  const { query, knowledgeBaseId } = await req.json();
+  const { query } = await req.json();
 
-  if (!query || !knowledgeBaseId) {
+  if (!query) {
     return NextResponse.json(
       { error: "Missing query or knowledgeBaseId" },
       { status: 400 },
@@ -17,7 +17,6 @@ export const POST = async (
   const results = await searchSimilarChunks({
     query,
     agentId: params.agentId,
-    knowledgeBaseId,
   });
 
   return NextResponse.json({ results });
