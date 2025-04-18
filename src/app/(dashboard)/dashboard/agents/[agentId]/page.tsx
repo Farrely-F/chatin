@@ -1,0 +1,102 @@
+import { AnimatedCard } from "@/components/ui/animated-card";
+import { Badge } from "@/components/ui/badge";
+import { Anthropic, Google, OpenAI } from "@/components/ui/icons/llm-provider";
+import {
+  PageLayout,
+  PageLayoutContent,
+  PageLayoutHeader,
+} from "@/components/ui/layout/page-layout";
+import { VerticalSeparator } from "@/components/ui/separator";
+import AgentDetailView from "@/features/agents/agent-details";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { getAgentWithKnowledgeBase } from "@/service/agents";
+import { getAllPersonas } from "@/service/personas";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+const agentConfig = {
+  google: {
+    icon: <Google className="size-4" />,
+    color: "bg-rose-100 border-rose-500",
+  },
+  openai: {
+    icon: <OpenAI className="size-4" />,
+    color: "bg-emerald-100 border-emerald-500",
+  },
+  anthropic: {
+    icon: <Anthropic className="size-4" />,
+    color: "bg-amber-100 border-amber-500",
+  },
+};
+
+export default async function AgentDetailPage({
+  params,
+}: {
+  params: Promise<{ agentId: string }>;
+}) {
+  const { agentId } = await params;
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return;
+  }
+
+  const agentDetails = await getAgentWithKnowledgeBase(agentId, user?.id || "");
+  const personas = await getAllPersonas(user?.id || "");
+
+  if ("error" in agentDetails) {
+    notFound();
+  }
+
+  return (
+    <PageLayout>
+      <PageLayoutHeader>
+        <div className="flex flex-wrap gap-2 items-center">
+          <span
+            className={`break-keep inline-flex gap-1 items-center px-2 py-1 text-xs text-muted-foreground border rounded-full ${agentConfig[agentDetails.llmProvider].color}`}
+          >
+            {agentConfig[agentDetails.llmProvider].icon}
+            {agentDetails.llmProvider}
+          </span>
+          <h1 className="text-2xl">{agentDetails.name}</h1>
+          <VerticalSeparator className="hidden sm:block" />
+          <p className="text-xs text-muted-foreground">
+            Created :
+            <br />
+            {agentDetails.createdAt?.toDateString()}
+          </p>
+        </div>
+      </PageLayoutHeader>
+      <PageLayoutContent>
+        <div className="flex items-center gap-2 mb-4 text-xs">
+          <Badge asChild variant={"secondary"}>
+            <Link href={`/chat/${agentDetails.slug}`}>
+              <span
+                className={`size-2 aspect-square rounded-full ${agentDetails.status === "active" ? "bg-green-200" : "bg-yellow-200"}`}
+              ></span>{" "}
+              {agentDetails.status}
+            </Link>
+          </Badge>
+          <Badge variant={"secondary"}>
+            knowledgebase: {agentDetails.knowledgeBases.length}
+          </Badge>
+          <Badge variant={"secondary"}>
+            persona: {agentDetails?.personas?.name || "None"}
+          </Badge>
+        </div>
+        {agentDetails.description && (
+          <AnimatedCard
+            title="Agent Description"
+            description={agentDetails.description!}
+          />
+        )}
+        <AgentDetailView
+          agentDetails={agentDetails}
+          userId={user?.id || ""}
+          agentKnowledgeBases={agentDetails.knowledgeBases}
+          personas={personas}
+        />
+      </PageLayoutContent>
+    </PageLayout>
+  );
+}
