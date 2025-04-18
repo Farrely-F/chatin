@@ -6,7 +6,6 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
-import { signJWT } from "../jwt";
 import { DrizzleAdapter } from "./drizzle-adapter";
 
 export const authOptions: NextAuthOptions = {
@@ -44,7 +43,7 @@ export const authOptions: NextAuthOptions = {
           .limit(1);
 
         if (!user || !user.passwordHash) {
-          throw Error("No user found");
+          throw Error("Unregistered");
         }
 
         const passwordMatch = await bcrypt.compare(
@@ -82,14 +81,12 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.name = token.name;
         session.user.email = token.email;
-        session.user.token = token.token as string;
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.token = await signJWT({ id: user.id });
       }
       return token;
     },

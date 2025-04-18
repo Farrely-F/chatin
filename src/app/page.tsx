@@ -34,7 +34,7 @@ export default function Home() {
               </div>
 
               <Button asChild variant={"gradient"} className="light">
-                <Link href={"/login"}>Create Now</Link>
+                <Link href={"/login"}>Sign me up!</Link>
               </Button>
             </nav>
           </MagicCard>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import GoogleIcon from "@/components/ui/icons/google";
 import { Atom } from "lucide-react";
 import { signIn } from "next-auth/react";
-import Link from "next/link";
+// import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
@@ -71,14 +71,12 @@ export default function LoginView() {
         Google
       </Button>
 
-      {!SSO && (
-        <Link
-          href="/register"
-          className="text-xs text-center text-gray-500 block"
-        >
-          Don&apos;t have an account? Sign up
-        </Link>
-      )}
+      {/* <Link
+        href="/register"
+        className="text-xs text-center text-gray-500 block"
+      >
+        Don&apos;t have an account? Sign up
+      </Link> */}
 
       <p className="text-center text-muted-foreground text-xs">
         © 2025 OBRA. All rights reserved.

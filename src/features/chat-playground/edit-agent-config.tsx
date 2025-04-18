@@ -1,13 +1,14 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { AgentDetails } from "@/service/agents";
 import { PersonaDetails } from "@/service/personas";
 import { Settings } from "lucide-react";
@@ -29,24 +30,27 @@ export default function EditAgentDialog({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild disabled={disabled}>
-        <Button variant={"outline"} size={"icon"}>
+    <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <SheetTrigger asChild>
+        <Button disabled={disabled} variant={"outline"} size={"icon"}>
           <Settings />
         </Button>
-      </DialogTrigger>
+      </SheetTrigger>
 
-      <DialogContent className="max-w-lg lg:min-w-lg">
-        <DialogHeader>
-          <DialogTitle>Edit Config</DialogTitle>
-        </DialogHeader>
-        <EditAgenConfig
-          personas={personas}
-          agentDetails={agentDetails}
-          userId={userId}
-          callback={() => setIsDialogOpen(false)}
-        />
-      </DialogContent>
-    </Dialog>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Edit Config</SheetTitle>
+        </SheetHeader>
+
+        <ScrollArea className="p-4 h-[600px]">
+          <EditAgenConfig
+            personas={personas}
+            agentDetails={agentDetails}
+            userId={userId}
+            callback={() => setIsDialogOpen(false)}
+          />
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -48,8 +48,16 @@ export default function DeleteAgent({
   };
 
   return (
-    <DropdownMenu open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-      <DropdownMenuTrigger asChild {...props}>
+    <DropdownMenu
+      open={isAlertOpen}
+      onOpenChange={setIsAlertOpen}
+      modal={false}
+    >
+      <DropdownMenuTrigger
+        asChild
+        {...props}
+        onClick={(e) => e.preventDefault()}
+      >
         <Button
           variant="ghost"
           className="size-5 p-0 hover:bg-transparent z-50"

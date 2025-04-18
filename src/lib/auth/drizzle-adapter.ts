@@ -1,6 +1,6 @@
 // lib/auth/drizzleAdapter.ts
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { roles, userRoles, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type {
   Adapter,
@@ -33,9 +33,18 @@ export function DrizzleAdapter(): Adapter {
         .values({
           email: data.email,
           name: data.name,
-          // passwordHash: data.password, // optional if you're managing password outside auth adapter
+          authProvider: "google",
         })
         .returning();
+
+      const role = await db.select().from(roles).where(eq(roles.name, "Users"));
+
+      if (role.length > 0) {
+        await db.insert(userRoles).values({
+          userId: user.id,
+          roleId: role[0].id,
+        });
+      }
 
       return { ...user, emailVerified: null };
     },

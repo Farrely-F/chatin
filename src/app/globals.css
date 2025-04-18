@@ -1,39 +1,8 @@
 @import "tailwindcss";
-/*
-  ---break---
-*/
 @plugin 'tailwindcss-animate';
-/*
-  ---break---
-*/
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));
 
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
-  }
-}
-/*
-  ---break---
-*/
 :root,
 .light {
   --background: oklch(1 0 0);
@@ -70,6 +39,7 @@
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.871 0.006 286.286);
 }
+
 .dark {
   --background: oklch(0.21 0.006 285.885);
   --foreground: oklch(0.985 0 0);
@@ -104,9 +74,7 @@
   --sidebar-border: oklch(0.274 0.006 286.033);
   --sidebar-ring: oklch(0.442 0.017 285.786);
 }
-/*
-  ---break---
-*/
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -144,6 +112,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
   --font-heading: var(--font-inter);
   --font-body: var(--font-inter);
@@ -159,10 +129,16 @@
     }
   }
 }
-/*
-  ---break---
-*/
+
 @layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

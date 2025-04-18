@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import SliderControl from "@/components/ui/slider-control";
 import { Check, Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -26,7 +25,7 @@ type Props = {
 
 export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   const router = useRouter();
-  const [chunkSize, setChunkSize] = useState(0);
+  const [chunkSize, setChunkSize] = useState(100);
   const [file, setFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -237,17 +236,10 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                 )}
               </div>
 
-              {/* {error && (
-                <Alert variant="destructive" className="mt-4">
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )} */}
-
               <div className="mt-2 space-y-4">
                 <SliderControl
                   label="Chunk Size"
-                  minValue={0}
+                  minValue={100}
                   maxValue={1000}
                   step={10}
                   defaultValue={[chunkSize]}

@@ -56,7 +56,7 @@ export default async function AgentPage() {
       </PageLayoutHeader>
       <PageLayoutContent>
         {agents?.length === 0 ? (
-          <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%]">
+          <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%] p-4">
             <BotIcon className="text-muted-foreground block size-18" />
             <p className="text-muted-foreground text-sm">
               Create your first agent

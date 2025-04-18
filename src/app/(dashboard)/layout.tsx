@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/sidebar";
 import UserDropdown from "@/components/ui/user-dropdown";
 import { requireAuth } from "@/lib/auth/auth-guard";
+import { getUserPermissions } from "@/lib/check-permission";
 import { cookies } from "next/headers";
 
 export default async function Layout({
@@ -14,11 +15,13 @@ export default async function Layout({
   const cookieStore = await cookies();
   const isOpen = cookieStore.get("sidebar:state")?.value === "true";
 
-  await requireAuth("/login");
+  const user = await requireAuth("/login");
+
+  const userPermissions = await getUserPermissions(user.id);
 
   return (
     <SidebarProvider defaultOpen={isOpen}>
-      <AppSidebar />
+      <AppSidebar permissions={userPermissions} />
       <SidebarInset className="bg-sidebar group/sidebar-inset">
         <header className="dark flex h-16 shrink-0 items-center gap-2 px-4 md:px-6 lg:px-8 bg-sidebar text-sidebar-foreground relative before:absolute before:inset-y-3 before:-left-px before:w-px before:bg-gradient-to-b before:from-white/5 before:via-white/15 before:to-white/5 before:z-50">
           <SidebarTrigger className="-ms-2" />

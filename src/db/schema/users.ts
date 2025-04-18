@@ -26,11 +26,12 @@ export const apiKeys = pgTable("api_keys", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name"),
-  keyHash: text("key_hash"),
-  isActive: boolean("is_active").default(true),
+  key: text("key").notNull().unique(), // hashed key
+  name: text("name"), // optional label like "My Bot Key"
+  scopes: text("scopes").array().default(["chat"]), // optional scopes (for future usage)
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }), // optional expiration
+  revoked: boolean("revoked").default(false),
 });
 
 export const billingPlans = pgTable("billing_plans", {
