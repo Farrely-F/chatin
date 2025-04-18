@@ -28,7 +28,7 @@ export default async function PersonasPage() {
       </PageLayoutHeader>
       <PageLayoutContent>
         {personas?.length === 0 ? (
-          <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%]">
+          <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%] p-4">
             <UserPenIcon className="text-muted-foreground block size-18" />
             <p className="text-muted-foreground text-sm">
               Create your first persona

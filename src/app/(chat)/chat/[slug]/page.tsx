@@ -1,5 +1,5 @@
-import Chat from "@/components/ui/public-chat/chat";
-import { PageHeader } from "@/components/ui/public-chat/header";
+import Chat from "@/features/public-chat/chat";
+import { PageHeader } from "@/features/public-chat/header";
 import { getAgentBySlug } from "@/service/agents";
 import { redirect } from "next/navigation";
 

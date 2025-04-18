@@ -40,10 +40,11 @@ function PageLayoutContent({
   className,
   ...props
 }: PageLayoutContentProps) {
+  // CHECK: ADDED MAX_HEIGHT
   return (
     <div
       className={cn(
-        "h-full flex flex-col px-4 md:px-6 lg:px-8 py-4",
+        "flex flex-col px-4 md:px-6 lg:px-8 py-4 h-full container mx-auto",
         className,
       )}
       {...props}

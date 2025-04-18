@@ -18,8 +18,10 @@ import {
   Bot,
   Code2Icon,
   Home,
+  KeyIcon,
   MessageCircleMore,
   SendIcon,
+  UserCircle,
   UserPen,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -49,6 +51,26 @@ const data = {
           title: "Personas",
           url: "/dashboard/personas",
           icon: UserPen,
+          disabled: false,
+        },
+      ],
+    },
+    {
+      title: "System",
+      url: "#",
+      disabled: false,
+      permission: "system.read",
+      items: [
+        {
+          title: "User Management",
+          url: "/dashboard/user-management",
+          icon: UserCircle,
+          disabled: false,
+        },
+        {
+          title: "Permission",
+          url: "/dashboard/roles-and-permissions",
+          icon: KeyIcon,
           disabled: false,
         },
       ],
@@ -107,8 +129,16 @@ const data = {
   ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const router = usePathname();
+const hasPermission = (required?: string, userPermissions: string[] = []) => {
+  if (!required) return true;
+  return userPermissions.includes(required);
+};
+
+export function AppSidebar({
+  permissions,
+  ...props
+}: { permissions: string[] } & React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname();
 
   return (
     <Sidebar {...props} className="dark !border-none">
@@ -119,48 +149,46 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {data.navMain.map((group) => (
-          <SidebarGroup key={group.title}>
-            <SidebarGroupLabel className="uppercase text-sidebar-foreground/50">
-              {group.title}
-            </SidebarGroupLabel>
-            <SidebarGroupContent className="px-2">
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      className="group/menu-button font-medium gap-3 h-9 rounded-md [&>svg]:size-auto"
-                      isActive={item.url === router}
-                      disabled={item.disabled}
-                    >
-                      <Link
-                        href={item.url}
-                        className={item.disabled ? "opacity-20" : ""}
+        {data.navMain
+          .filter((group) => hasPermission(group.permission, permissions))
+          .map((group) => (
+            <SidebarGroup key={group.title}>
+              <SidebarGroupLabel className="uppercase text-sidebar-foreground/50">
+                {group.title}
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="px-2">
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        className="group/menu-button font-medium gap-3 h-9 rounded-md [&>svg]:size-auto"
+                        isActive={item.url === pathname}
+                        disabled={item.disabled}
                       >
-                        {item.icon && (
-                          <item.icon
-                            className="text-sidebar-foreground/50 group-data-[active=true]/menu-button:text-primary"
-                            size={18}
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+                        <Link
+                          href={item.url}
+                          className={item.disabled ? "opacity-20" : ""}
+                        >
+                          {item.icon && (
+                            <item.icon
+                              className="text-sidebar-foreground/50 group-data-[active=true]/menu-button:text-primary"
+                              size={18}
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
       </SidebarContent>
       <SidebarFooter>
-        {/* Secondary Navigation */}
         <SidebarGroup>
-          {/* <SidebarGroupLabel className="uppercase text-sidebar-foreground/50">
-            {data.footerAction[0]?.title}
-          </SidebarGroupLabel> */}
           <SidebarGroupContent className="px-2">
             <SidebarMenu>
               {data.footerAction.map((item) => (

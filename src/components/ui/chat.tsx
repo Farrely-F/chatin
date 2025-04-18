@@ -8,7 +8,7 @@ import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LucideCircleArrowOutDownLeft, StopCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ export default function Chat({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [usedToken, setUsedToken] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,6 +48,9 @@ export default function Chat({
       user_id: userId,
     },
     maxSteps: 2,
+    onFinish(_, options) {
+      setUsedToken(options?.usage?.totalTokens ?? 0);
+    },
   });
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export default function Chat({
     <>
       {/* Header */}
       <div className="py-5 bg-background sticky top-0 z-10 before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-gradient-to-r before:from-black/[0.06] before:via-black/10 before:to-black/[0.06]">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex max-w-3xl mx-auto items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <Button variant={"ghost"} onClick={() => router.back()}>
               <LucideCircleArrowOutDownLeft />
@@ -140,11 +144,18 @@ export default function Chat({
                     />
                   )}
                 />
-                <div className="flex items-center justify-end gap-2 p-3">
+                <div className="flex items-center justify-between gap-2 p-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      {usedToken} tokens used
+                    </p>
+                  </div>
                   <Button
                     type={status === "streaming" ? "button" : "submit"}
                     variant="gradient"
-                    className="rounded-full h-8"
+                    className={`rounded-full h-8 ${
+                      status === "streaming" ? "animate-pulse" : ""
+                    }`}
                     onClick={() => (status !== "ready" ? stop() : null)}
                   >
                     {status === "streaming" ? (

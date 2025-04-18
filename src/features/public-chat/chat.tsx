@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { AgentDetails } from "@/service/agents";
-import { useChat } from "@ai-sdk/react";
+import { Message, useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { StopCircle } from "lucide-react";
 import { useEffect, useRef, useTransition } from "react";
@@ -11,14 +11,20 @@ import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { ChatMessage } from "../chat-message";
-import { Form, FormField } from "../form";
+import { ChatMessage } from "../../components/ui/chat-message";
+import { Form, FormField } from "../../components/ui/form";
 
 const formSchema = z.object({
   message: z.string().trim().min(1),
 });
 
-export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
+export default function Chat({
+  agentDetails,
+  initialMessage,
+}: {
+  agentDetails: AgentDetails;
+  initialMessage?: Message[];
+}) {
   const [, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -64,13 +70,6 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
 
   return (
     <>
-      {/* Header */}
-      {/* <div className="py-5 bg-background sticky top-0 z-10 before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-gradient-to-r before:from-black/[0.06] before:via-black/10 before:to-black/[0.06]">
-        <div className="flex items-center justify-between gap-2">
-          <h1>{agentDetails.name} Playground</h1>
-        </div>
-      </div> */}
-
       {/* Chat */}
       <div className="relative grow">
         <div className="max-w-3xl mx-auto mt-6 space-y-6">

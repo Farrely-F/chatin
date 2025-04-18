@@ -5,6 +5,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import * as React from "react";
 
+import { buttonVariants } from "./button";
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -24,9 +26,20 @@ function DialogPortal({
 }
 
 function DialogClose({
+  className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
+  return (
+    <DialogPrimitive.Close
+      data-slot="dialog-close"
+      className={cn(
+        buttonVariants({ variant: "outline" }),
+        "text-destructive hover:text-destructive/80",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function DialogOverlay({
@@ -52,7 +65,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay onClick={(e) => e.stopPropagation()} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
