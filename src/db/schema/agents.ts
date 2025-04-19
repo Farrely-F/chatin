@@ -7,6 +7,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { aiModels } from "./models";
 import { personas } from "./personas";
 import { users } from "./users";
 
@@ -32,8 +33,11 @@ export const agents = pgTable("agents", {
   status: agentStatusEnum("status").notNull().default("archived"),
   avatarUrl: text("avatar_url"),
   systemPrompt: text("system_prompt"),
-  llmProvider: llmProviderEnum("llm_provider").notNull(),
-  modelName: text("model_name"),
+  modelId: uuid("model_id")
+    .notNull()
+    .references(() => aiModels.id, {
+      onDelete: "restrict",
+    }),
   temperature: real("temperature").notNull().default(0.7),
   topP: real("top_p").notNull().default(1.0),
   similarityThreshold: real("similarity_threshold").notNull().default(0.5),

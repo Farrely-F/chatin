@@ -1,0 +1,1 @@
+ALTER TABLE "agents" ALTER COLUMN "model_id" SET NOT NULL;

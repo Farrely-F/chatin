@@ -19,8 +19,8 @@ export default async function UserManagementPage() {
   }
 
   return (
-    <PageLayout className="container mx-auto py-10 space-y-8">
-      <PageLayoutHeader className="space-y-2">
+    <PageLayout className="container mx-auto space-y-8">
+      <PageLayoutHeader className="space-y-2 pt-10">
         <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
         <p className="text-muted-foreground">
           Manage user and their associated role

@@ -16,6 +16,20 @@ export async function getAllAgents(userId: string) {
   return res;
 }
 
+export async function getAllAgentWithModel(userId: string) {
+  if (!userId) {
+    return;
+  }
+
+  const res = await db.query.agents.findMany({
+    where: (agents, { eq, and }) => and(eq(agents.userId, userId)),
+    with: {
+      model: true,
+    },
+  });
+  return res;
+}
+
 export async function getAllAgentsByUserId(userId: string) {
   if (!userId) {
     return;
@@ -180,6 +194,7 @@ export async function getAgentWithKnowledgeBase(
       with: {
         knowledgeBases: true,
         personas: true,
+        model: true,
       },
     });
 
@@ -228,6 +243,7 @@ export async function getDeployedAgentBySlug(slug: string) {
       with: {
         knowledgeBases: true,
         personas: true,
+        model: true,
       },
     });
 
