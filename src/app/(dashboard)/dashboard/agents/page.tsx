@@ -81,11 +81,7 @@ export default async function AgentPage() {
                   agent.model.isAvailable ? `/dashboard/agents/${agent.id}` : ""
                 }
                 key={agent.id}
-                className={
-                  agent.model.isAvailable
-                    ? ""
-                    : "cursor-not-allowed pointer-events-none opacity-50"
-                }
+                className={agent.model.isAvailable ? "" : "opacity-50"}
               >
                 <PulseCard
                   actionButton={
@@ -101,7 +97,7 @@ export default async function AgentPage() {
                   title={agent.name}
                   description={agent.description!}
                   variant={agent.color}
-                  className="border w-full h-full"
+                  className={`border w-full h-full ${agent.model.isAvailable ? "" : "cursor-not-allowed"}`}
                 />
               </Link>
             ))}

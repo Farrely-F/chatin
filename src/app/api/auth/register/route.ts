@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { roles, userRoles } from "@/db/schema";
 import { users } from "@/db/schema/users";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 

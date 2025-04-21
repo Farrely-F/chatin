@@ -7,7 +7,7 @@ import {
   userRoles,
   users,
 } from "@/db/schema";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 async function seedSystemAdmin() {
