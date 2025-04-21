@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { roles, userRoles } from "@/db/schema";
 import { users } from "@/db/schema/users";
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
@@ -42,6 +43,15 @@ export async function POST(request: Request) {
         authProvider: "email",
       })
       .returning();
+
+    const role = await db.select().from(roles).where(eq(roles.name, "Users"));
+
+    if (role.length > 0) {
+      await db.insert(userRoles).values({
+        userId: newUser.id,
+        roleId: role[0].id,
+      });
+    }
 
     return NextResponse.json(
       {

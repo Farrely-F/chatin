@@ -5,3 +5,7 @@ export * from "./knowledgebases";
 export * from "./embeddings";
 export * from "./relations";
 export * from "./personas";
+export * from "./permissions";
+export * from "./roles";
+export * from "./role-permissions";
+export * from "./user-roles";

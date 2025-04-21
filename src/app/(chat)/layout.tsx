@@ -1,8 +1,5 @@
-import { AppSidebar } from "@/components/ui/public-chat/app-sidebar";
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/public-chat/sidebar";
+import { AppSidebar } from "@/features/public-chat/app-sidebar";
+import { SidebarInset, SidebarProvider } from "@/features/public-chat/sidebar";
 
 export default function PublicChatLayout({
   children,
