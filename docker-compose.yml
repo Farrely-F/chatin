@@ -1,6 +1,16 @@
 version: "3.8"
 
 services:
+  chatin-web:
+    build:
+      context: .
+      dockerfile: dockerfile
+      target: runner
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+
   postgres:
     container_name: container-pg
     image: ankane/pgvector
@@ -8,9 +18,9 @@ services:
     ports:
       - "5435:5432" # host:container
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: chatin
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       PG_TRUST_LOCALNET: true
       POSTGRES_TRUST_LOCALNET: true
     volumes:
@@ -24,8 +34,8 @@ services:
     ports:
       - "5050:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: root
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
 
 volumes:
   postgres-data:
