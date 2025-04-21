@@ -5,106 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1744173152366,
-      "tag": "0000_init-pgvector",
+      "when": 1744987236604,
+      "tag": "0000_init-db",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1744173461607,
-      "tag": "0001_yellow_spectrum",
+      "when": 1745038785432,
+      "tag": "0001_add-model-config",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1744180954670,
-      "tag": "0002_thin_paper_doll",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1744184331314,
-      "tag": "0003_mute_layla_miller",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1744184618116,
-      "tag": "0004_strange_orphan",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1744184786340,
-      "tag": "0005_silent_supreme_intelligence",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1744268285963,
-      "tag": "0006_change-provider-enum",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1744524194567,
-      "tag": "0007_modify-agent-config",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1744524510553,
-      "tag": "0008_modify-agent-config",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1744603427102,
-      "tag": "0009_adding-personas-table",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1744603545746,
-      "tag": "0010_adding-personas-table",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1744604199930,
-      "tag": "0011_create-type-for-personas",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1744604326036,
-      "tag": "0012_create-type-for-personas",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1744604840215,
-      "tag": "0013_alter-table-agents-slug",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1744784251638,
-      "tag": "0014_create-role-permission",
+      "when": 1745044249891,
+      "tag": "0002_change-ai-model-to-not-null",
       "breakpoints": true
     }
   ]

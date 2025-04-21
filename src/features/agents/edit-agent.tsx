@@ -54,7 +54,7 @@ export default function EditAgenConfig({
     defaultValues: {
       name: agentDetails.name,
       description: agentDetails.description || "",
-      llmProvider: agentDetails.llmProvider,
+      modelId: agentDetails.modelId || "",
       systemPrompt: agentDetails.systemPrompt || "",
       temperature: agentDetails.temperature,
       similarityThreshold: agentDetails.similarityThreshold,
@@ -189,33 +189,6 @@ export default function EditAgenConfig({
               <FormLabel>Agent Description</FormLabel>
               <FormControl>
                 <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="llmProvider"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>LLM Provider</FormLabel>
-              <FormControl>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                  disabled
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select LLM Provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="google">Google</SelectItem>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic</SelectItem>
-                  </SelectContent>
-                </Select>
               </FormControl>
               <FormMessage />
             </FormItem>

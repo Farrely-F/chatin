@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { url } from "inspector";
 import {
   Atom,
   BookText,
@@ -23,6 +24,7 @@ import {
   SendIcon,
   UserCircle,
   UserPen,
+  Wrench,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
@@ -71,6 +73,12 @@ const data = {
           title: "Permission",
           url: "/dashboard/roles-and-permissions",
           icon: KeyIcon,
+          disabled: false,
+        },
+        {
+          title: "Model Management",
+          url: "/dashboard/model-management",
+          icon: Wrench,
           disabled: false,
         },
       ],

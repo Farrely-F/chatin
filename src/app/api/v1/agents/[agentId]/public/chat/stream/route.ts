@@ -47,7 +47,7 @@ export async function POST(
       return NextResponse.json({ error: agentConfig.error }, { status: 400 });
     }
 
-    const model = getLLMProvider(agentConfig.llmProvider);
+    const model = getLLMProvider(agentConfig.model);
     const response = generateStreamResponse({
       model,
       agentConfig,

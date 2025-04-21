@@ -8,30 +8,36 @@ import { PulseCard } from "@/components/ui/pulse-card";
 import AgentCreation from "@/features/agents/agent-creation";
 import DeleteAgent from "@/features/agents/delete-agent";
 import { getCurrentUser } from "@/lib/auth/auth";
-import { getAllAgents } from "@/service/agents";
+import { getAllAgentWithModel } from "@/service/agents";
+import { getAllModels } from "@/service/model";
 import { BotIcon } from "lucide-react";
 import Link from "next/link";
 
-const providerColorMap = {
-  openai: {
-    color: "emerald",
-    icon: OpenAI,
-  },
-  google: {
-    color: "rose",
-    icon: Google,
-  },
-  anthropic: {
-    color: "amber",
-    icon: Anthropic,
-  },
-} satisfies Record<
-  string,
-  {
-    color: "amber" | "rose" | "emerald";
-    icon: React.ElementType;
+function providerIconAndColor(provider: string) {
+  switch (provider) {
+    case "openai":
+      return {
+        color: "emerald",
+        icon: OpenAI,
+      };
+
+    case "google":
+      return {
+        color: "rose",
+        icon: Google,
+      };
+    case "anthropic":
+      return {
+        color: "amber",
+        icon: Anthropic,
+      };
+    default:
+      return {
+        color: "blue",
+        icon: BotIcon,
+      };
   }
->;
+}
 
 export default async function AgentPage() {
   const user = await getCurrentUser();
@@ -39,12 +45,17 @@ export default async function AgentPage() {
   if (!user) {
     return;
   }
-
-  const agents = await getAllAgents(user?.id || "").then((res) =>
+  const models = await getAllModels();
+  const agents = await getAllAgentWithModel(user.id).then((res) =>
     res?.map((agent) => ({
       ...agent,
-      color: providerColorMap[agent.llmProvider].color || "blue",
-      icon: providerColorMap[agent.llmProvider].icon,
+      color: providerIconAndColor(agent?.model?.provider).color as
+        | "emerald"
+        | "blue"
+        | "purple"
+        | "amber"
+        | "rose",
+      icon: providerIconAndColor(agent?.model?.provider).icon,
     })),
   );
 
@@ -52,7 +63,7 @@ export default async function AgentPage() {
     <PageLayout>
       <PageLayoutHeader className="flex items-center justify-between bg-white py-4 z-40">
         <h1 className="text-2xl">AI Agents</h1>
-        <AgentCreation />
+        <AgentCreation models={models} />
       </PageLayoutHeader>
       <PageLayoutContent>
         {agents?.length === 0 ? (
@@ -65,7 +76,17 @@ export default async function AgentPage() {
         ) : (
           <div className="grid sm:grid-cols-3 gap-4 items-stretch">
             {agents?.map((agent) => (
-              <Link href={`/dashboard/agents/${agent.id}`} key={agent.id}>
+              <Link
+                href={
+                  agent.model.isAvailable ? `/dashboard/agents/${agent.id}` : ""
+                }
+                key={agent.id}
+                className={
+                  agent.model.isAvailable
+                    ? ""
+                    : "cursor-not-allowed pointer-events-none opacity-50"
+                }
+              >
                 <PulseCard
                   actionButton={
                     <DeleteAgent

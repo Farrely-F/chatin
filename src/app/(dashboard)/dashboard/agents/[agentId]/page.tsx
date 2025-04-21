@@ -11,24 +11,36 @@ import AgentDetailView from "@/features/agents/agent-details";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { getAllPersonas } from "@/service/personas";
+import { BotIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-const agentConfig = {
-  google: {
-    icon: <Google className="size-4" />,
-    color: "bg-rose-100 border-rose-500",
-  },
-  openai: {
-    icon: <OpenAI className="size-4" />,
-    color: "bg-emerald-100 border-emerald-500",
-  },
-  anthropic: {
-    icon: <Anthropic className="size-4" />,
-    color: "bg-amber-100 border-amber-500",
-  },
-};
+function agentConfig(provider: string) {
+  switch (provider) {
+    case "openai":
+      return {
+        icon: <OpenAI className="size-4" />,
+        color: "bg-emerald-100 border-emerald-500",
+      };
 
+    case "google":
+      return {
+        icon: <Google className="size-4" />,
+        color: "bg-rose-100 border-rose-500",
+      };
+
+    case "anthropic":
+      return {
+        icon: <Anthropic className="size-4" />,
+        color: "bg-amber-100 border-amber-500",
+      };
+    default:
+      return {
+        icon: <BotIcon className="size-4" />,
+        color: "bg-blue-100 border-blue-500",
+      };
+  }
+}
 export default async function AgentDetailPage({
   params,
 }: {
@@ -53,10 +65,10 @@ export default async function AgentDetailPage({
       <PageLayoutHeader>
         <div className="flex flex-wrap gap-2 items-center">
           <span
-            className={`break-keep inline-flex gap-1 items-center px-2 py-1 text-xs text-muted-foreground border rounded-full ${agentConfig[agentDetails.llmProvider].color}`}
+            className={`break-keep inline-flex gap-1 items-center px-2 py-1 text-xs text-muted-foreground border rounded-full ${agentConfig(agentDetails.model?.provider).color}`}
           >
-            {agentConfig[agentDetails.llmProvider].icon}
-            {agentDetails.llmProvider}
+            {agentConfig(agentDetails.model?.provider).icon}
+            {agentDetails.model?.provider}
           </span>
           <h1 className="text-2xl">{agentDetails.name}</h1>
           <VerticalSeparator className="hidden sm:block" />

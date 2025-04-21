@@ -28,6 +28,7 @@ import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
 import { createNewAgent } from "@/service/agents";
+import { ModelDetails } from "@/service/model";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -35,7 +36,7 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-export default function AgentCreation() {
+export default function AgentCreation({ models }: { models: ModelDetails[] }) {
   const { data: session } = useSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -44,7 +45,7 @@ export default function AgentCreation() {
     defaultValues: {
       name: "",
       description: "",
-      llmProvider: "google",
+      modelId: "",
       systemPrompt: "",
       temperature: 0.7,
     },
@@ -110,22 +111,29 @@ export default function AgentCreation() {
 
             <FormField
               control={form.control}
-              name="llmProvider"
+              name="modelId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>LLM Provider</FormLabel>
+                  <FormLabel>Available Model</FormLabel>
                   <FormControl>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
+                      disabled={models?.length === 0 || !models}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select LLM Provider" />
+                        <SelectValue placeholder="Select Available Model" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="google">Google</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
+                        {models?.map((model) => (
+                          <SelectItem
+                            key={model.id}
+                            value={model.id}
+                            disabled={!model.isAvailable}
+                          >
+                            {model.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormControl>
