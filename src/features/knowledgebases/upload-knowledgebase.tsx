@@ -15,13 +15,24 @@ import { useRouter } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
-// import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { z } from "zod";
 
 type Props = {
   userId: string;
   agentId: string;
 };
+
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+
+// Zod schema for file validation
+const fileSchema = z
+  .instanceof(File)
+  .refine((file) => file.type === "application/pdf", {
+    message: "Please select a PDF file",
+  })
+  .refine((file) => file.size <= MAX_FILE_SIZE, {
+    message: "File size must be less than 2MB",
+  });
 
 export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   const router = useRouter();
@@ -32,7 +43,6 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   const [, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
 
-  // Clean up object URL when component unmounts or file changes
   useEffect(() => {
     return () => {
       if (pdfUrl) {
@@ -41,23 +51,31 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
     };
   }, [pdfUrl]);
 
+  const validateFile = (selectedFile: File) => {
+    const result = fileSchema.safeParse(selectedFile);
+    if (!result.success) {
+      const errorMessage = result.error.errors[0]?.message || "Invalid file";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      return false;
+    }
+    return true;
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0] || null;
 
     if (selectedFile) {
-      if (selectedFile.type !== "application/pdf") {
-        setError("Please select a PDF file");
+      if (!validateFile(selectedFile)) {
         setFile(null);
         setPdfUrl(null);
         return;
       }
 
-      // Revoke previous URL if it exists
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
       }
 
-      // Create a URL for the file preview
       const fileObjectUrl = URL.createObjectURL(selectedFile);
 
       setFile(selectedFile);
@@ -74,17 +92,14 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
     const droppedFile = e.dataTransfer.files?.[0] || null;
 
     if (droppedFile) {
-      if (droppedFile.type !== "application/pdf") {
-        setError("Please select a PDF file");
+      if (!validateFile(droppedFile)) {
         return;
       }
 
-      // Revoke previous URL if it exists
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
       }
 
-      // Create a URL for the file preview
       const fileObjectUrl = URL.createObjectURL(droppedFile);
 
       setFile(droppedFile);
@@ -107,15 +122,17 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
     formData.append("file", file);
     formData.append("userId", userId);
     formData.append("chunkSize", chunkSize.toString());
-    // formData.append("agentId", agentId);
 
     setIsUploading(true);
 
     try {
-      const res = await fetch(`/api/v1/agents/${agentId}/knowledgebases`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(
+        `/api/v1/agents/${agentId}/knowledgebases/document`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       if (!res.ok) {
         const err = await res.json();
@@ -125,7 +142,6 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
       toast.success("File uploaded and embedded!");
       router.refresh();
 
-      // Clear the form
       setFile(null);
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);

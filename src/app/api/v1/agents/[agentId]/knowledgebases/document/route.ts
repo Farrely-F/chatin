@@ -46,7 +46,7 @@ export const POST = async (
 
   const { error: uploadError } = await supabase.storage
     .from("knowledge-base")
-    .upload(fileName, buffer, {
+    .upload(`${agentId}/${fileName}`, buffer, {
       contentType: file.type || "application/octet-stream",
     });
 
@@ -59,7 +59,7 @@ export const POST = async (
 
   const publicUrl = supabase.storage
     .from("knowledge-base")
-    .getPublicUrl(fileName).data.publicUrl;
+    .getPublicUrl(`${agentId}/${fileName}`).data.publicUrl;
 
   // Store metadata to knowledge_bases
   const [{ id: knowledgeBaseId }] = await db
@@ -70,7 +70,7 @@ export const POST = async (
       sourceType: fileExt as "pdf" | "doc" | "txt" | "url" | "manual",
       sourceUrl: publicUrl,
       fileName: file.name,
-      filePath: fileName,
+      filePath: `${agentId}/${fileName}`,
     })
     .returning({ id: knowledgeBases.id });
 
