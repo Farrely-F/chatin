@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";

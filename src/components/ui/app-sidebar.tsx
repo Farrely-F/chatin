@@ -12,7 +12,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { url } from "inspector";
 import {
   Atom,
   BookText,

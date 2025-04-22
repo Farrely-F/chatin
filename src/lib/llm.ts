@@ -100,21 +100,22 @@ export function generateStreamResponse({
           "Retrieve context from knowledge base to answer question that you might not know",
         parameters: z.object({}),
         execute: async () => {
+          console.log("Calling Retrieve Context");
           const context = await searchSimilarChunks({
             query: messages[messages.length - 1].content as string,
             agentId,
             topK: agentConfig.topK || 5,
             similarityThreshold: agentConfig.similarityThreshold || 0.5,
           });
-          console.log("calling tools");
           return context;
         },
       }),
       retrieve_whole_knowledge_base: tool({
         description:
-          "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization, translation, etc.",
+          "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization",
         parameters: z.object({}),
         execute: async () => {
+          console.log("Calling Whole Context");
           const context = await getAllKnowledgeChunks(agentId);
           return context;
         },
@@ -160,7 +161,6 @@ export function generateTextResponse({
             topK: agentConfig.topK || 5,
             similarityThreshold: agentConfig.similarityThreshold || 0.5,
           });
-          console.log("calling tools");
           return context;
         },
       }),

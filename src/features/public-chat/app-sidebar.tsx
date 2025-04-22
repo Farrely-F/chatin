@@ -1,6 +1,8 @@
 import { Atom } from "lucide-react";
 import Link from "next/link";
 
+import ChatHistory from "./chat-history";
+import NewChatPage from "./new-chat";
 import {
   Sidebar,
   SidebarContent,
@@ -10,8 +12,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarTrigger,
 } from "./sidebar";
 
@@ -34,17 +34,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
       <SidebarContent className="gap-0 mt-3 pt-3 border-t">
+        <SidebarGroup className="px-1 z-20 bg-sidebar sticky -top-3">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <NewChatPage />
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         <SidebarGroup className="px-1">
-          <SidebarGroupLabel className="uppercase text-muted-foreground/65 sticky -top-3 bg-background z-10">
+          <SidebarGroupLabel className="uppercase text-muted-foreground/65 bg-background z-10">
             History
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {Array.from({ length: 100 }).map((_, i) => (
-                <SidebarMenuItem key={i}>
-                  <SidebarMenuButton>Item {i}</SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <ChatHistory />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

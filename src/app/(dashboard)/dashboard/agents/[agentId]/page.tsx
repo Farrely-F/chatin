@@ -60,6 +60,10 @@ export default async function AgentDetailPage({
     notFound();
   }
 
+  if (!agentDetails.model.isAvailable) {
+    notFound();
+  }
+
   return (
     <PageLayout>
       <PageLayoutHeader>

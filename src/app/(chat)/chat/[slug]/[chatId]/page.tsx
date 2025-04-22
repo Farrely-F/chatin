@@ -1,5 +1,6 @@
+import Chat from "@/features/public-chat/chat";
+import { PageHeader } from "@/features/public-chat/header";
 import { getAgentBySlug } from "@/service/agents";
-import { generateId } from "ai";
 import { redirect } from "next/navigation";
 
 export default async function PublicChatPage({
@@ -15,5 +16,10 @@ export default async function PublicChatPage({
     return redirect("/404");
   }
 
-  redirect(`/chat/${slug}/${generateId()}`);
+  return (
+    <>
+      <PageHeader title={agent.name} />
+      <Chat agentDetails={agent} />
+    </>
+  );
 }

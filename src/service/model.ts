@@ -17,8 +17,6 @@ export async function getAllModels() {
 }
 
 export async function addNewModel(data: ModelSchema) {
-  console.log(data);
-
   try {
     const res = await db.insert(aiModels).values({ ...data });
 
