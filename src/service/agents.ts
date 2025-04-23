@@ -36,7 +36,11 @@ export async function getAllAgentsByUserId(userId: string) {
   }
 
   const res = await db
-    .select({ id: agents.id, name: agents.name })
+    .select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+    })
     .from(agents)
     .where(eq(agents.userId, userId));
   return res;

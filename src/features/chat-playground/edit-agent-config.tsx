@@ -10,6 +10,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { AgentDetails } from "@/service/agents";
+import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { Settings } from "lucide-react";
 import { useState } from "react";
@@ -18,11 +19,13 @@ import EditAgenConfig from "../agents/edit-agent";
 
 export default function EditAgentDialog({
   agentDetails,
+  models,
   personas,
   userId,
   disabled,
 }: {
   agentDetails: AgentDetails;
+  models: ModelDetails[];
   personas: PersonaDetails[];
   userId: string;
   disabled: boolean;
@@ -44,6 +47,7 @@ export default function EditAgentDialog({
 
         <ScrollArea className="p-4 h-[600px]">
           <EditAgenConfig
+            models={models}
             personas={personas}
             agentDetails={agentDetails}
             userId={userId}

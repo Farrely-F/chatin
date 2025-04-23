@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AgentDetails } from "@/service/agents";
 import { KnowledgeBase } from "@/service/knowledgebases";
+import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { EditIcon, FlaskConical, LucideBookCopy } from "lucide-react";
 import Link from "next/link";
@@ -28,11 +29,13 @@ const agentMenu = [
 
 export default function AgentDetailView({
   agentDetails,
+  models,
   agentKnowledgeBases,
   personas,
   userId,
 }: {
   agentDetails: AgentDetails;
+  models: ModelDetails[];
   agentKnowledgeBases: KnowledgeBase[];
   personas: PersonaDetails[];
   userId: string;
@@ -78,6 +81,7 @@ export default function AgentDetailView({
       <div className="bg-gray-100 sm:col-span-6 rounded-lg p-4 overflow-y-auto">
         {selectedMenu === "agent-details" ? (
           <EditAgenConfig
+            models={models}
             agentDetails={agentDetails}
             userId={userId}
             personas={personas}

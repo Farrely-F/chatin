@@ -1,4 +1,10 @@
-import { Anthropic, Google, OpenAI } from "@/components/ui/icons/llm-provider";
+import {
+  Anthropic,
+  Google,
+  Groq,
+  OpenAI,
+  OpenRouter,
+} from "@/components/ui/icons/llm-provider";
 import {
   PageLayout,
   PageLayoutContent,
@@ -30,6 +36,16 @@ function providerIconAndColor(provider: string) {
       return {
         color: "amber",
         icon: Anthropic,
+      };
+    case "openrouter":
+      return {
+        color: "purple",
+        icon: OpenRouter,
+      };
+    case "groq":
+      return {
+        color: "blue",
+        icon: Groq,
       };
     default:
       return {
@@ -77,9 +93,7 @@ export default async function AgentPage() {
           <div className="grid sm:grid-cols-3 gap-4 items-stretch">
             {agents?.map((agent) => (
               <Link
-                href={
-                  agent.model.isAvailable ? `/dashboard/agents/${agent.id}` : ""
-                }
+                href={`/dashboard/agents/${agent.id}`}
                 key={agent.id}
                 className={agent.model.isAvailable ? "" : "opacity-50"}
               >
@@ -97,7 +111,7 @@ export default async function AgentPage() {
                   title={agent.name}
                   description={agent.description!}
                   variant={agent.color}
-                  className={`border w-full h-full ${agent.model.isAvailable ? "" : "cursor-not-allowed"}`}
+                  className={`border w-full h-full`}
                 />
               </Link>
             ))}

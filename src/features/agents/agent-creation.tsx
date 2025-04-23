@@ -17,13 +17,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
@@ -35,6 +28,8 @@ import { useSession } from "next-auth/react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+
+import GroupedModelSelect from "../models-config/model-selector";
 
 export default function AgentCreation({ models }: { models: ModelDetails[] }) {
   const { data: session } = useSession();
@@ -114,28 +109,12 @@ export default function AgentCreation({ models }: { models: ModelDetails[] }) {
               name="modelId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Available Model</FormLabel>
+                  <FormLabel>Select Available Model</FormLabel>
                   <FormControl>
-                    <Select
+                    <GroupedModelSelect
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={models?.length === 0 || !models}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select Available Model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {models?.map((model) => (
-                          <SelectItem
-                            key={model.id}
-                            value={model.id}
-                            disabled={!model.isAvailable}
-                          >
-                            {model.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      models={models}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

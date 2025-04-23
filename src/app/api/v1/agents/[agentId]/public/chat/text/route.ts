@@ -1,4 +1,4 @@
-import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
+import { generateTextResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { NextRequest, NextResponse } from "next/server";
@@ -29,13 +29,10 @@ export async function POST(
       );
     }
 
-    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id);
+    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id || "");
 
     if ("error" in agentConfig) {
-      return NextResponse.json(
-        { status: false, error: agentConfig.error },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: agentConfig.error }, { status: 400 });
     }
 
     if (agentConfig.model.isAvailable === false) {
@@ -46,14 +43,21 @@ export async function POST(
     }
 
     const model = getLLMProvider(agentConfig.model);
-    const response = generateStreamResponse({
+    const { response } = await generateTextResponse({
       model,
       agentConfig,
       messages,
       agentId,
     });
 
-    return response.toDataStreamResponse();
+    if (!response) {
+      return NextResponse.json(
+        { status: false, error: "Something went wrong" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

@@ -3,10 +3,11 @@
 import { Button } from "@/components/ui/button";
 import EditAgentDialog from "@/features/chat-playground/edit-agent-config";
 import { AgentDetails } from "@/service/agents";
+import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SquareArrowDownLeft, StopCircle } from "lucide-react";
+import { ArrowLeft, StopCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -23,10 +24,12 @@ const formSchema = z.object({
 
 export default function Chat({
   agentDetails,
+  models,
   personas,
   userId,
 }: {
   agentDetails: AgentDetails;
+  models: ModelDetails[];
   personas: PersonaDetails[];
   userId: string;
 }) {
@@ -89,11 +92,12 @@ export default function Chat({
               size={"icon"}
               onClick={() => router.back()}
             >
-              <SquareArrowDownLeft className="text-muted-foreground size-5" />
+              <ArrowLeft className="text-muted-foreground size-5" />
             </Button>
             <h1>{agentDetails.name} Playground</h1>
           </div>
           <EditAgentDialog
+            models={models}
             personas={personas}
             disabled={isPending}
             agentDetails={agentDetails}

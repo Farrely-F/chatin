@@ -3,7 +3,9 @@ import { getAllKnowledgeChunks } from "@/service/knowledgebases";
 import { ModelDetails } from "@/service/model";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   CoreMessage,
   LanguageModelV1,
@@ -28,6 +30,14 @@ const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
+
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY!,
+});
+
 export function getLLMProvider(model: ModelDetails | null) {
   if (!model) {
     throw new Error("Model not found");
@@ -40,6 +50,10 @@ export function getLLMProvider(model: ModelDetails | null) {
       return google(model.name);
     case "anthropic":
       return anthropic(model.name);
+    case "groq":
+      return groq(model.name);
+    case "openrouter":
+      return openrouter(model.name);
     default:
       throw new Error(`Unknown LLM provider: ${model.provider}`);
   }
@@ -56,10 +70,8 @@ function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
   You are ${name}
   Always Check your knowledge base before answering any questions. Only respond to questions using information from tool calls.
   if you have more than one knowledgebase, always ask the user on which knowledge base they want to use before using the tool.
-  if there is only one knowledgebase, proceed to use the knowledgebase.
-
-  Additional Instructions:
-  ${systemPrompt}
+  Ask the user to choose the knowledgebase name and then proceed to use the id (do not share the id directly with the user).
+  if there is only one knowledgebase, proceed to use the knowledgebase directly.
   
   System Information:
   - Agent Name: ${name}
@@ -86,8 +98,11 @@ function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
       - id: ${kb.id} (do not share the id directly with the user)
       `;
         })
-      : "No Knowledgebases Attached"
+      : "No Knowledgebases Attached (ask user to upload a knowledgebase at the training data page)"
   }
+
+  Additional Instructions:
+  ${systemPrompt}
   `;
 }
 
@@ -169,7 +184,7 @@ function llmToolsConfig({
         knowledgeBaseId: z
           .string()
           .describe(
-            "The knowledge base id of the user selected knowledge base",
+            "The knowledge base id of the user selected knowledge base from your system prompt",
           ),
       }),
       execute: async ({ knowledgeBaseId }) => {
@@ -191,7 +206,7 @@ function llmToolsConfig({
         knowledgeBaseId: z
           .string()
           .describe(
-            "The knowledge base id of the user selected knowledge base",
+            "The knowledge base id of the user selected knowledge base from your system prompt",
           ),
       }),
       execute: async ({ knowledgeBaseId }) => {
