@@ -36,7 +36,7 @@ export async function recursiveCrawl(
   const chunks = splitIntoChunks(text, 500);
   const embeddings = await generateMultipleEmbeddings(chunks);
 
-  if (chunks.length === 0) {
+  if (chunks.length === 0 || embeddings.length === 0) {
     throw new Error("URL is not processable");
   }
 

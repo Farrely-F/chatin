@@ -140,7 +140,11 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
         throw new Error(err?.error || "Upload failed");
       }
 
-      toast.success("File uploaded and embedded!");
+      const result = await res.json();
+
+      toast.success(
+        result.message || "File uploaded and embedded successfully",
+      );
       router.refresh();
 
       setFile(null);

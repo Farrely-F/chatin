@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { knowledgeBases } from "@/db/schema";
 import { recursiveCrawl } from "@/lib/web-crawler";
+import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
@@ -32,6 +33,11 @@ export async function POST(
         agentId,
         trx,
       );
+
+      await trx
+        .update(knowledgeBases)
+        .set({ embeddingStatus: "success" })
+        .where(eq(knowledgeBases.id, knowledgeBaseId));
 
       return NextResponse.json(
         {
