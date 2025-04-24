@@ -3,7 +3,7 @@ WORKDIR /app
 
 COPY package-lock.json .
 COPY package.json .
-RUN npm ci --force --include=optional
+RUN npm ci --include=optional
 COPY . .
 RUN npm run build
 
