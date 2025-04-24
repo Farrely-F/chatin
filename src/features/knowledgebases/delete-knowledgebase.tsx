@@ -18,10 +18,12 @@ import { toast } from "sonner";
 export default function DeleteKnowledgeBase({
   agentId,
   knowledgeBaseId,
+  type,
   filePath,
 }: {
   agentId: string;
   knowledgeBaseId: string;
+  type: string;
   filePath: string;
 }) {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -33,6 +35,7 @@ export default function DeleteKnowledgeBase({
       const res = await deleteKnowledgeBaseById(
         agentId,
         knowledgeBaseId,
+        type,
         filePath,
       );
 

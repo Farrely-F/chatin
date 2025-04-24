@@ -9,7 +9,6 @@ import { EditIcon, FlaskConical, LucideBookCopy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import UploadKnowledgeForm from "../knowledgebases/upload-knowledgebase";
 import AgentKnowledgebases from "./agent-knowledgebases";
 import DeployAgent from "./deploy-agent";
 import EditAgenConfig from "./edit-agent";
@@ -83,12 +82,11 @@ export default function AgentDetailView({
             userId={userId}
             personas={personas}
           />
-        ) : agentKnowledgeBases.length === 0 ? (
-          <UploadKnowledgeForm agentId={agentDetails.id} userId={userId} />
         ) : (
           <AgentKnowledgebases
             agentKnowledgeBases={agentKnowledgeBases}
             agentDetails={agentDetails}
+            userId={userId}
           />
         )}
       </div>

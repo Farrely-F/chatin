@@ -24,11 +24,14 @@ export async function getAllKnowledgeBases(agentId: string) {
 export async function deleteKnowledgeBaseById(
   agentId: string,
   knowledgeBaseId: string,
+  type: string,
   filePath: string,
 ) {
   try {
     // Delete the file from Supabase
-    await supabase.storage.from("knowledge-base").remove([filePath]);
+    if (type === "pdf") {
+      await supabase.storage.from("knowledge-base").remove([filePath]);
+    }
 
     // Delete the knowledge base and associated embeddings
     await db.transaction(async (trx) => {
@@ -83,14 +86,22 @@ export async function similaritySearch(
   return contextText;
 }
 
-export async function getAllKnowledgeChunks(agentId: string) {
+export async function getAllKnowledgeChunks(
+  agentId: string,
+  knowledgeBaseId: string,
+) {
   const res = await db
     .select({
       id: chunkEmbeddings.id,
       content: chunkEmbeddings.contentChunk,
     })
     .from(chunkEmbeddings)
-    .where(and(eq(chunkEmbeddings.agentId, agentId)));
+    .where(
+      and(
+        eq(chunkEmbeddings.agentId, agentId),
+        eq(chunkEmbeddings.knowledgeBaseId, knowledgeBaseId),
+      ),
+    );
 
   if (!res.length) {
     return [];

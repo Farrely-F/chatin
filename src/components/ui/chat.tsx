@@ -6,7 +6,7 @@ import { AgentDetails } from "@/service/agents";
 import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LucideCircleArrowOutDownLeft, StopCircle } from "lucide-react";
+import { SquareArrowDownLeft, StopCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -84,8 +84,12 @@ export default function Chat({
       <div className="py-5 bg-background sticky top-0 z-10 before:absolute before:inset-x-0 before:bottom-0 before:h-px before:bg-gradient-to-r before:from-black/[0.06] before:via-black/10 before:to-black/[0.06]">
         <div className="flex max-w-3xl mx-auto items-center justify-between gap-2">
           <div className="flex items-center gap-1">
-            <Button variant={"ghost"} onClick={() => router.back()}>
-              <LucideCircleArrowOutDownLeft />
+            <Button
+              variant={"ghost"}
+              size={"icon"}
+              onClick={() => router.back()}
+            >
+              <SquareArrowDownLeft className="text-muted-foreground size-5" />
             </Button>
             <h1>{agentDetails.name} Playground</h1>
           </div>

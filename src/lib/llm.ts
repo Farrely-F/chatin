@@ -7,6 +7,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import {
   CoreMessage,
   LanguageModelV1,
+  Tool,
   generateText,
   streamText,
   tool,
@@ -49,28 +50,44 @@ function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
     throw new Error(agentConfig.error);
   }
 
+  const { name, systemPrompt, personas, knowledgeBases } = agentConfig;
+
   return `
-  You are ${agentConfig.name}
+  You are ${name}
   Always Check your knowledge base before answering any questions. Only respond to questions using information from tool calls.
+  if you have more than one knowledgebase, always ask the user on which knowledge base they want to use before using the tool.
+  if there is only one knowledgebase, proceed to use the knowledgebase.
 
   Additional Instructions:
-  ${agentConfig.systemPrompt}
+  ${systemPrompt}
   
   System Information:
-  - Agent Name: ${agentConfig.name}
+  - Agent Name: ${name}
 
   Persona:
   ${
-    agentConfig?.personas
+    personas
       ? `
-    - Sex: ${agentConfig?.personas?.sex}
-    - Answer Preference: ${agentConfig?.personas?.answerPreference}
-    - Formality: ${agentConfig?.personas?.formality}
-    - Emoji Usage: ${agentConfig?.personas?.emojiUsage}
-    - Default Language: ${agentConfig?.personas?.defaultLanguage}
+    - Sex: ${personas?.sex}
+    - Answer Preference: ${personas?.answerPreference}
+    - Formality: ${personas?.formality}
+    - Emoji Usage: ${personas?.emojiUsage}
+    - Default Language: ${personas?.defaultLanguage}
     `
       : "No Persona Attached"
   } 
+
+  Knowledgebases: 
+  ${
+    knowledgeBases.length > 0
+      ? knowledgeBases.map((kb) => {
+          return `
+      - name: ${kb.fileName}
+      - id: ${kb.id} (do not share the id directly with the user)
+      `;
+        })
+      : "No Knowledgebases Attached"
+  }
   `;
 }
 
@@ -94,33 +111,7 @@ export function generateStreamResponse({
     system: generateSysPrompt(agentConfig),
     messages,
     temperature: agentConfig.temperature || 0.7,
-    tools: {
-      retrieve_context: tool({
-        description:
-          "Retrieve context from knowledge base to answer question that you might not know",
-        parameters: z.object({}),
-        execute: async () => {
-          console.log("Calling Retrieve Context");
-          const context = await searchSimilarChunks({
-            query: messages[messages.length - 1].content as string,
-            agentId,
-            topK: agentConfig.topK || 5,
-            similarityThreshold: agentConfig.similarityThreshold || 0.5,
-          });
-          return context;
-        },
-      }),
-      retrieve_whole_knowledge_base: tool({
-        description:
-          "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization",
-        parameters: z.object({}),
-        execute: async () => {
-          console.log("Calling Whole Context");
-          const context = await getAllKnowledgeChunks(agentId);
-          return context;
-        },
-      }),
-    },
+    tools: llmToolsConfig({ messages, agentId, agentConfig }),
     topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
@@ -149,34 +140,67 @@ export function generateTextResponse({
     system: generateSysPrompt(agentConfig),
     messages,
     temperature: agentConfig.temperature || 0.7,
-    tools: {
-      retrieve_context: tool({
-        description:
-          "Retrieve context from knowledge base to answer question that you might not know",
-        parameters: z.object({}),
-        execute: async () => {
-          const context = await searchSimilarChunks({
-            query: messages[messages.length - 1].content as string,
-            agentId,
-            topK: agentConfig.topK || 5,
-            similarityThreshold: agentConfig.similarityThreshold || 0.5,
-          });
-          return context;
-        },
-      }),
-      retrieve_whole_knowledge_base: tool({
-        description:
-          "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization, translation, etc.",
-        parameters: z.object({}),
-        execute: async () => {
-          const context = await getAllKnowledgeChunks(agentId);
-          return context;
-        },
-      }),
-    },
+    tools: llmToolsConfig({ messages, agentId, agentConfig }),
     topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
   });
 
   return response;
+}
+
+function llmToolsConfig({
+  messages,
+  agentId,
+  agentConfig,
+}: {
+  messages: CoreMessage[];
+  agentId: string;
+  agentConfig: AgentWithKnowledgeBase;
+}) {
+  if ("error" in agentConfig) {
+    throw new Error(agentConfig.error);
+  }
+
+  const tools = {
+    retrieve_context: tool({
+      description:
+        "Retrieve context from knowledge base to answer question that you might not know",
+      parameters: z.object({
+        knowledgeBaseId: z
+          .string()
+          .describe(
+            "The knowledge base id of the user selected knowledge base",
+          ),
+      }),
+      execute: async ({ knowledgeBaseId }) => {
+        console.log("Calling Retrieve Context");
+        const context = await searchSimilarChunks({
+          query: messages[messages.length - 1].content as string,
+          agentId,
+          knowledgeBaseId,
+          topK: agentConfig.topK || 5,
+          similarityThreshold: agentConfig.similarityThreshold || 0.5,
+        });
+        return context;
+      },
+    }),
+    retrieve_whole_knowledge_base: tool({
+      description:
+        "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization",
+      parameters: z.object({
+        knowledgeBaseId: z
+          .string()
+          .describe(
+            "The knowledge base id of the user selected knowledge base",
+          ),
+      }),
+      execute: async ({ knowledgeBaseId }) => {
+        console.log("Calling Whole Context");
+        const context = await getAllKnowledgeChunks(agentId, knowledgeBaseId);
+        return context;
+      },
+    }),
+  } satisfies Record<string, Tool>;
+
+  return tools;
 }
