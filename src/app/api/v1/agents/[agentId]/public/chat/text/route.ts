@@ -3,7 +3,7 @@ import { withAuth } from "@/middleware/api-middleware";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function postHandler(
+async function postHandler(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> },
 ) {
