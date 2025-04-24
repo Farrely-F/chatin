@@ -3,7 +3,7 @@ import { withAuth } from "@/middleware/api-middleware";
 import { ApiHandlerArgs } from "@/types/api";
 import { NextResponse } from "next/server";
 
-export async function handler(...args: ApiHandlerArgs) {
+async function handler(...args: ApiHandlerArgs) {
   const [req, { params }] = args;
 
   const { agentId } = await params;

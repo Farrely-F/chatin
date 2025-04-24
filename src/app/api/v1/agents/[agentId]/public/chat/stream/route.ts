@@ -4,7 +4,7 @@ import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { ApiHandlerArgs } from "@/types/api";
 import { NextResponse } from "next/server";
 
-export async function postHandler(...args: ApiHandlerArgs) {
+async function postHandler(...args: ApiHandlerArgs) {
   const [req, { params }] = args;
 
   try {

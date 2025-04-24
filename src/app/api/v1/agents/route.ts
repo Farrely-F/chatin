@@ -11,7 +11,7 @@ type SearchParams = {
   modelId?: string;
 };
 
-export async function handler(...args: ApiHandlerArgs) {
+async function handler(...args: ApiHandlerArgs) {
   const [req] = args;
 
   if (!req.authorized?.userId) {
