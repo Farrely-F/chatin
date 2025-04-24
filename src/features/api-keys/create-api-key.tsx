@@ -87,7 +87,7 @@ export function CreateApiKeyForm({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="h-full">
+    <div>
       {newApiKey ? (
         <ApiKeyDisplay apiKey={newApiKey} onDone={() => setNewApiKey(null)} />
       ) : (

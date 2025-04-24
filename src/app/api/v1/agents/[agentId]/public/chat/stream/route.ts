@@ -1,26 +1,17 @@
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
-import { NextRequest, NextResponse } from "next/server";
+import { ApiHandlerArgs } from "@/types/api";
+import { NextResponse } from "next/server";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> },
-) {
+export async function postHandler(...args: ApiHandlerArgs) {
+  const [req, { params }] = args;
+
   try {
     const body = await req.json();
 
     const { messages, user_id } = body;
     const { agentId } = await params;
-
-    const authorized = await withAuth(req);
-
-    if (!authorized) {
-      return NextResponse.json(
-        { status: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
 
     if (!messages) {
       return NextResponse.json(
@@ -29,7 +20,10 @@ export async function POST(
       );
     }
 
-    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id);
+    const agentConfig = await getAgentWithKnowledgeBase(
+      agentId,
+      req.authorized?.userId || user_id,
+    );
 
     if ("error" in agentConfig) {
       return NextResponse.json(
@@ -62,3 +56,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withAuth(postHandler, "chat");

@@ -25,18 +25,17 @@ export default async function ApiKeysManagement() {
 
         <TabsContent value="account" className="space-y-4">
           <div className="w-full">
-            {/* <AccountDetails user={user} /> */}
             <EndpointInfo user={user} />
           </div>
         </TabsContent>
         <TabsContent value="api-keys" className="space-y-4">
-          <div className="grid gap-8 md:grid-cols-2">
+          <div className="grid gap-8 grid-cols-1 md:grid-cols-2">
             <div>
               <h2 className="text-xl font-semibold mb-4">Create New API Key</h2>
               <CreateApiKeyForm userId={user?.id} />
             </div>
 
-            <div className="h-full">
+            <div>
               <h2 className="text-xl font-semibold mb-4">Your API Keys</h2>
               <Suspense fallback={<ApiKeysListSkeleton />}>
                 <ApiKeysList userId={user?.id} />

@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import SliderControl from "@/components/ui/slider-control";
-import { Check, Eye, FileText, Upload, X } from "lucide-react";
+import { Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
@@ -22,7 +22,8 @@ type Props = {
   agentId: string;
 };
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+// Maximum file size, CONSIDER USING HIGHER PROB 10mb
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 2MB
 
 // Zod schema for file validation
 const fileSchema = z
@@ -31,7 +32,7 @@ const fileSchema = z
     message: "Please select a PDF file",
   })
   .refine((file) => file.size <= MAX_FILE_SIZE, {
-    message: "File size must be less than 2MB",
+    message: "File size must be less than 10MB",
   });
 
 export default function UploadKnowledgeForm({ userId, agentId }: Props) {
@@ -182,7 +183,9 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
             Upload Knowledge PDF
           </CardTitle>
           <CardDescription>
-            Upload PDF documents to train your chatbot with custom knowledge
+            Upload PDF documents to train your chatbot with custom knowledge.
+            Please make sure the PDF is not password-protected and text based
+            (not scanned).
           </CardDescription>
         </CardHeader>
 
@@ -278,10 +281,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                       Uploading & Embedding...
                     </>
                   ) : (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Upload & Embed
-                    </>
+                    <>Upload & Embed</>
                   )}
                 </Button>
               </div>

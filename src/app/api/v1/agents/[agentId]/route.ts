@@ -1,16 +1,14 @@
 import { db } from "@/db";
 import { withAuth } from "@/middleware/api-middleware";
-import { NextRequest, NextResponse } from "next/server";
+import { ApiHandlerArgs } from "@/types/api";
+import { NextResponse } from "next/server";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> },
-) {
+export async function handler(...args: ApiHandlerArgs) {
+  const [req, { params }] = args;
+
   const { agentId } = await params;
 
-  const authorized = await withAuth(req);
-
-  if (!authorized) {
+  if (!req.authorized?.userId) {
     return NextResponse.json(
       { status: false, error: "Unauthorized" },
       { status: 401 },
@@ -20,7 +18,10 @@ export async function GET(
   try {
     const agent = await db.query.agents.findFirst({
       where: (agents, { eq, and }) =>
-        and(eq(agents.id, agentId), eq(agents.userId, authorized.userId)),
+        and(
+          eq(agents.id, agentId),
+          eq(agents.userId, req.authorized?.userId as string),
+        ),
       with: {
         knowledgeBases: {
           columns: {
@@ -58,3 +59,5 @@ export async function GET(
     );
   }
 }
+
+export const GET = withAuth(handler, "read");

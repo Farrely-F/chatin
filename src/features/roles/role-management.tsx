@@ -24,7 +24,7 @@ export function RoleManagement({
 }) {
   return (
     <Card onClick={(e) => e.stopPropagation()}>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap">
         <div>
           <CardTitle>User Roles</CardTitle>
           <CardDescription>
@@ -33,7 +33,7 @@ export function RoleManagement({
         </div>
         <CreateRoleDialog userId={userId} availablePermissions={permissions} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         <RolesTable roles={roles} />
       </CardContent>
     </Card>
