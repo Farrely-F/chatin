@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/lib/chat-store";
+import { X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -44,7 +45,7 @@ export default function ChatHistory() {
                 className="absolute right-0 top-1/2 -translate-y-1/2 hidden group-hover/item:block"
                 onClick={() => handleDeleteChat(chat.chatId)}
               >
-                X
+                <X />
               </Button>
             </div>
           </SidebarMenuButton>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ProgressProvider } from "@bprogress/next/app";
 import { SessionProvider } from "next-auth/react";
 import { ReactNode } from "react";
 
@@ -8,5 +9,17 @@ type AuthProviderProps = {
 };
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      <ProgressProvider
+        options={{
+          showSpinner: false,
+        }}
+        color="#8B5A6A"
+        shallowRouting={false}
+      >
+        {children}
+      </ProgressProvider>
+    </SessionProvider>
+  );
 }
