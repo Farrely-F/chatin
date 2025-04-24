@@ -31,7 +31,7 @@ export function PermissionManagement({
 
   return (
     <Card onClick={(e) => e.stopPropagation()}>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap">
         <div>
           <CardTitle>Permissions</CardTitle>
           <CardDescription>
@@ -40,7 +40,7 @@ export function PermissionManagement({
         </div>
         <CreatePermissionDialog userId={userId} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         <PermissionsTable categories={categories} permissions={permissions} />
       </CardContent>
     </Card>

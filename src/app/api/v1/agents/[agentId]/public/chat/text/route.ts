@@ -3,7 +3,7 @@ import { withAuth } from "@/middleware/api-middleware";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(
+export async function postHandler(
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> },
 ) {
@@ -13,15 +13,6 @@ export async function POST(
     const { messages, user_id } = body;
     const { agentId } = await params;
 
-    const authorized = await withAuth(req);
-
-    if (!authorized) {
-      return NextResponse.json(
-        { status: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
-
     if (!messages) {
       return NextResponse.json(
         { status: false, error: "Invalid message" },
@@ -29,7 +20,7 @@ export async function POST(
       );
     }
 
-    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id || "");
+    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id);
 
     if ("error" in agentConfig) {
       return NextResponse.json({ error: agentConfig.error }, { status: 400 });
@@ -57,7 +48,14 @@ export async function POST(
       );
     }
 
-    return NextResponse.json(response, { status: 200 });
+    return NextResponse.json(
+      {
+        status: true,
+        timestamp: response.timestamp,
+        messages: response.messages,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json(
@@ -66,3 +64,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withAuth(postHandler, "chat");

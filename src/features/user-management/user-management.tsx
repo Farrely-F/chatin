@@ -18,13 +18,13 @@ export function UserManagement({
 }) {
   return (
     <Card onClick={(e) => e.stopPropagation()}>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
         <div>
           <CardTitle>Active User</CardTitle>
         </div>
         <CreateUserDialog userId={userId} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         <UsersTable userId={userId} users={users} roles={roles} />
       </CardContent>
     </Card>

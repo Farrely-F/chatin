@@ -59,7 +59,7 @@ function PageLayout({ children, className, ...props }: PageLayoutProps) {
   return (
     <ScrollArea
       className={cn(
-        "flex-1 [&>div>div]:h-full w-full shadow-md md:rounded-s-[inherit] bg-background",
+        "@container flex-1 [&>div>div]:h-full w-full shadow-md md:rounded-s-[inherit] bg-background",
         className,
       )}
       {...props}

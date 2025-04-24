@@ -54,6 +54,9 @@ export default function Chat({
     onFinish(_, options) {
       setUsedToken(options?.usage?.totalTokens ?? 0);
     },
+    onError(error) {
+      toast.error(error instanceof Error ? error.message : error);
+    },
   });
 
   useEffect(() => {
@@ -74,12 +77,6 @@ export default function Chat({
       });
     });
   };
-
-  useEffect(() => {
-    if (status === "error") {
-      toast.error("Something went wrong. Please try again.");
-    }
-  }, [status]);
 
   return (
     <>

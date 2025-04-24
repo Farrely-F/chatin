@@ -17,7 +17,7 @@ export default async function ModelManagementPage() {
         <h1 className="text-3xl font-bold tracking-tight">Model Management</h1>
         <p className="text-muted-foreground">Manage your LLM models</p>
       </PageLayoutHeader>
-      <PageLayoutContent>
+      <PageLayoutContent className="@container mx-auto">
         <ModelManagement userId={user?.id || ""} models={models} />
       </PageLayoutContent>
     </PageLayout>

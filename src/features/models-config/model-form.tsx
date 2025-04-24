@@ -190,6 +190,9 @@ export function ModelForm({
                     <FormLabel className="text-base">
                       Support Image Input
                     </FormLabel>
+                    <FormDescription>
+                      Support image input for this model
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch
@@ -210,6 +213,9 @@ export function ModelForm({
                     <FormLabel className="text-base">
                       Support Tool Use
                     </FormLabel>
+                    <FormDescription>
+                      Support tool use for this model
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch
@@ -230,6 +236,9 @@ export function ModelForm({
                     <FormLabel className="text-base">
                       Support Tool Streaming
                     </FormLabel>
+                    <FormDescription>
+                      Support tool streaming for this model
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch
@@ -250,6 +259,9 @@ export function ModelForm({
                     <FormLabel className="text-base">
                       Support Object Generation
                     </FormLabel>
+                    <FormDescription>
+                      Support object generation for this model
+                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch

@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { withAuth } from "@/middleware/api-middleware";
+import { ApiHandlerArgs } from "@/types/api";
 import { and, eq, like } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 type SearchParams = {
   name?: string;
@@ -10,11 +11,14 @@ type SearchParams = {
   modelId?: string;
 };
 
-export async function GET(req: NextRequest) {
-  const authorized = await withAuth(req);
+export async function handler(...args: ApiHandlerArgs) {
+  const [req] = args;
 
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!req.authorized?.userId) {
+    return NextResponse.json(
+      { status: false, error: "Unauthorized" },
+      { status: 401 },
+    );
   }
 
   const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
         model: true,
       },
       where: conditions.length
-        ? and(eq(agents.userId, authorized.userId), ...conditions)
+        ? and(eq(agents.userId, req.authorized.userId), ...conditions)
         : undefined,
     });
 
@@ -47,3 +51,5 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export const GET = withAuth(handler, "chat");

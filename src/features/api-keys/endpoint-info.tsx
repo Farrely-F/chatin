@@ -14,7 +14,7 @@ export async function EndpointInfo({ user }: { user: User }) {
       <CardHeader>
         <CardTitle>API Endpoints</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-1">
@@ -50,10 +50,12 @@ export async function EndpointInfo({ user }: { user: User }) {
                 Chat Endpoint
               </div>
               <div className="flex items-center gap-2">
-                <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                  https://{`{{host}}`}/api/v1/:agentId/public/chat/
-                  {"<stream/text>"}
-                </code>
+                <div className="overflow-x-auto">
+                  <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm whitespace-nowrap">
+                    https://{`{{host}}`}/api/v1/:agentId/public/chat/
+                    {"<stream/text>"}
+                  </code>
+                </div>
                 <CopyButton value="https://api.yourdomain.com/v1/chat" />
               </div>
             </div>
@@ -89,9 +91,11 @@ fetch('https://{{host}}/api/v1/agents/:agentId/public/chat/:responseMethod', {
               All Agents
             </p>
             <div className="flex items-center gap-2">
-              <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                https://api.yourdomain.com/v1/agents
-              </code>
+              <div className="overflow-x-auto">
+                <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+                  https://api.yourdomain.com/v1/agents
+                </code>
+              </div>
               <CopyButton value={"https://api.yourdomain.com/v1/agents"} />
             </div>
 

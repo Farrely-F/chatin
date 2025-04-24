@@ -19,6 +19,7 @@ import {
   Code2Icon,
   Home,
   KeyIcon,
+  LogOut,
   MessageCircleMore,
   SendIcon,
   UserCircle,
@@ -131,7 +132,7 @@ const data = {
     {
       title: "Logout",
       url: "",
-      icon: Home,
+      icon: LogOut,
     },
   ],
 };

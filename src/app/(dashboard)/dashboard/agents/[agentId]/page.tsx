@@ -18,7 +18,7 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { getAllModels } from "@/service/model";
 import { getAllPersonas } from "@/service/personas";
-import { BotIcon } from "lucide-react";
+import { ArrowUpRight, BotIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -103,15 +103,22 @@ export default async function AgentDetailPage({
             <Link href={`/chat/${agentDetails.slug}`}>
               <span
                 className={`size-2 aspect-square rounded-full ${agentDetails.status === "active" ? "bg-green-200" : "bg-yellow-200"}`}
-              ></span>{" "}
-              {agentDetails.status}
+              />
+              {agentDetails.status === "active" ? (
+                <>
+                  {agentDetails.status}
+                  <ArrowUpRight className="size-4" />
+                </>
+              ) : (
+                agentDetails.status
+              )}
             </Link>
           </Badge>
           <Badge variant={"secondary"}>
             knowledgebase: {agentDetails.knowledgeBases.length}
           </Badge>
           <Badge variant={"secondary"}>
-            persona: {agentDetails?.personas?.name || "None"}
+            persona: {agentDetails?.personas?.name || "none"}
           </Badge>
         </div>
         {agentDetails.description && (

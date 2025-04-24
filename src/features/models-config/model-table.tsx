@@ -96,7 +96,7 @@ export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           <Select
             onValueChange={(provider) => setSelectedProviders([provider])}
           >
@@ -142,8 +142,8 @@ export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
         </div>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
+      <div className="border rounded-lg @container">
+        <Table className="w-full @sm:w-full">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>

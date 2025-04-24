@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
+import { slugify } from "@/lib/utils";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
 import { createNewAgent } from "@/service/agents";
 import { ModelDetails } from "@/service/model";
@@ -85,6 +87,14 @@ export default function AgentCreation({ models }: { models: ModelDetails[] }) {
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <div className="text-xs flex items-center gap-1 truncate">
+                    your deployed agent slug will be:
+                    {field.value && (
+                      <Badge variant={"secondary"}>
+                        {slugify(field.value)}
+                      </Badge>
+                    )}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

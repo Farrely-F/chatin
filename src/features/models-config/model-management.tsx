@@ -100,7 +100,7 @@ export function ModelManagement({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap">
         <h2 className="text-xl font-semibold">Available Models</h2>
         <Button
           variant="gradient"
