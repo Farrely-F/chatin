@@ -110,13 +110,13 @@ const data = {
     {
       title: "Developer",
       url: "#",
-      disabled: true,
+      disabled: false,
       items: [
         {
           title: "API",
-          url: "",
+          url: "/dashboard/api-keys",
           icon: Code2Icon,
-          disabled: true,
+          disabled: false,
         },
         {
           title: "Documentation",

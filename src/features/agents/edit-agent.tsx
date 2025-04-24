@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/tooltip";
 import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
 import { type AgentDetails, updateAgentById } from "@/service/agents";
+import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Delete, Speech } from "lucide-react";
@@ -36,13 +37,17 @@ import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import GroupedModelSelect from "../models-config/model-selector";
+
 export default function EditAgenConfig({
   agentDetails,
+  models,
   personas,
   userId,
   callback,
 }: {
   agentDetails: AgentDetails;
+  models: ModelDetails[];
   personas: PersonaDetails[];
   userId: string;
   callback?: () => void;
@@ -80,13 +85,16 @@ export default function EditAgenConfig({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(editAgent)} className="space-y-2">
+      <form
+        onSubmit={form.handleSubmit(editAgent)}
+        className="space-y-4 @container"
+      >
         <FormField
           control={form.control}
           name="personaId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Agent Persona</FormLabel>
+              <FormLabel>🗣️ Agent Persona</FormLabel>
               <FormControl>
                 <div className="flex items-center gap-2">
                   <Select
@@ -167,26 +175,45 @@ export default function EditAgenConfig({
 
         <Separator className="my-4" />
 
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Agent Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid @sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>📝 Agent Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="modelId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>🤖 Selected Model</FormLabel>
+                <FormControl>
+                  <GroupedModelSelect
+                    models={models}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Agent Description</FormLabel>
+              <FormLabel>💭 Agent Description</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -200,7 +227,7 @@ export default function EditAgenConfig({
           name="systemPrompt"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>System Prompt</FormLabel>
+              <FormLabel>🛠️ System Prompt</FormLabel>
               <FormControl>
                 <Textarea
                   {...field}

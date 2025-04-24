@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth/auth";
-import { verifyJWT } from "@/lib/jwt";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
+import { verifyApiKey } from "@/service/api-key";
 import { NextRequest, NextResponse } from "next/server";
 
 const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN!;
@@ -13,40 +13,59 @@ export async function POST(
   const body = await req.json();
   const host = req.headers.get("host");
 
+  const { messages, user_id } = body;
+  const { agentId } = await params;
+
   const session = await auth();
 
   if (!session?.user || !host?.includes(AUHTORIZED_DOMAIN)) {
     const token = req.headers.get("Authorization")?.split("Bearer ")[1];
 
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { status: false, error: "Unauthorized" },
+        { status: 401 },
+      );
     }
 
-    const isValidToken = await verifyJWT(token || "");
+    const isValidToken = await verifyApiKey(token);
 
     if (!isValidToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { status: false, error: "Unauthorized" },
+        { status: 401 },
+      );
     }
   }
 
-  const { messages, user_id } = body;
-  const { agentId } = await params;
-
   if (!user_id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 400 });
+    return NextResponse.json(
+      { status: false, error: "Unauthorized" },
+      { status: 400 },
+    );
   }
 
   const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id || "");
 
   if ("error" in agentConfig) {
-    return NextResponse.json({ error: agentConfig.error }, { status: 400 });
+    return NextResponse.json(
+      { status: false, error: agentConfig.error },
+      { status: 400 },
+    );
+  }
+
+  if (agentConfig.model.isAvailable === false) {
+    return NextResponse.json(
+      { error: "Model is not available" },
+      { status: 400 },
+    );
   }
 
   const model = getLLMProvider(agentConfig.model);
 
   if (!messages) {
     return NextResponse.json(
-      { error: "Missing query or knowledgeBaseId" },
+      { status: false, error: "Missing messages" },
       { status: 400 },
     );
   }
@@ -59,7 +78,10 @@ export async function POST(
   });
 
   if ("error" in response) {
-    return NextResponse.json({ error: response.error }, { status: 500 });
+    return NextResponse.json(
+      { status: false, error: response.error },
+      { status: 500 },
+    );
   }
 
   return response.toDataStreamResponse();

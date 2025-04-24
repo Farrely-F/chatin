@@ -1,6 +1,12 @@
 import { AnimatedCard } from "@/components/ui/animated-card";
 import { Badge } from "@/components/ui/badge";
-import { Anthropic, Google, OpenAI } from "@/components/ui/icons/llm-provider";
+import {
+  Anthropic,
+  Google,
+  Groq,
+  OpenAI,
+  OpenRouter,
+} from "@/components/ui/icons/llm-provider";
 import {
   PageLayout,
   PageLayoutContent,
@@ -10,6 +16,7 @@ import { VerticalSeparator } from "@/components/ui/separator";
 import AgentDetailView from "@/features/agents/agent-details";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
+import { getAllModels } from "@/service/model";
 import { getAllPersonas } from "@/service/personas";
 import { BotIcon } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +41,16 @@ function agentConfig(provider: string) {
         icon: <Anthropic className="size-4" />,
         color: "bg-amber-100 border-amber-500",
       };
+    case "openrouter":
+      return {
+        icon: <OpenRouter className="size-4" />,
+        color: "bg-purple-100 border-purple-500",
+      };
+    case "groq":
+      return {
+        icon: <Groq className="size-4" />,
+        color: "bg-blue-100 border-blue-500",
+      };
     default:
       return {
         icon: <BotIcon className="size-4" />,
@@ -55,12 +72,9 @@ export default async function AgentDetailPage({
 
   const agentDetails = await getAgentWithKnowledgeBase(agentId, user?.id || "");
   const personas = await getAllPersonas(user?.id || "");
+  const models = await getAllModels();
 
   if ("error" in agentDetails) {
-    notFound();
-  }
-
-  if (!agentDetails.model.isAvailable) {
     notFound();
   }
 
@@ -107,6 +121,7 @@ export default async function AgentDetailPage({
           />
         )}
         <AgentDetailView
+          models={models}
           agentDetails={agentDetails}
           userId={user?.id || ""}
           agentKnowledgeBases={agentDetails.knowledgeBases}
