@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { withAuth } from "@/middleware/api-middleware";
 import { ApiHandlerArgs } from "@/types/api";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, ilike } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 type SearchParams = {
@@ -26,7 +26,7 @@ async function handler(...args: ApiHandlerArgs) {
   const { name, status, modelId } = searchParams as SearchParams;
 
   const conditions = [];
-  if (name) conditions.push(like(agents.name, `%${name}%`));
+  if (name) conditions.push(ilike(agents.name, `%${name}%`));
   if (status) conditions.push(eq(agents.status, status));
   if (modelId) conditions.push(eq(agents.modelId, modelId));
 

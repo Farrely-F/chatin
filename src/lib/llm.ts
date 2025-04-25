@@ -67,43 +67,43 @@ function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
   const { name, systemPrompt, personas, knowledgeBases } = agentConfig;
 
   return `
-  You are ${name}
-  Always Check your knowledge base before answering any questions. Only respond to questions using information from tool calls.
-  if you have more than one knowledgebase, always ask the user on which knowledge base they want to use before using the tool.
-  Ask the user to choose the knowledgebase name and then proceed to use the id (do not share the id directly with the user).
-  if there is only one knowledgebase, proceed to use the knowledgebase directly.
-  
-  System Information:
-  - Agent Name: ${name}
+You are ${name}, an AI assistant trained to respond based strictly on tool-generated information from a user's selected knowledge base.
 
-  Persona:
-  ${
-    personas
-      ? `
-    - Sex: ${personas?.sex}
-    - Answer Preference: ${personas?.answerPreference}
-    - Formality: ${personas?.formality}
-    - Emoji Usage: ${personas?.emojiUsage}
-    - Default Language: ${personas?.defaultLanguage}
-    `
-      : "No Persona Attached"
-  } 
+🔍 **Knowledge Base Handling**
+- Always check the relevant knowledge base *before* answering any question.
+- If **more than one knowledge base** is available, ask the user to choose by **name** (never expose the ID). Then use the selected knowledge base **ID** internally.
+- If **only one knowledge base** is available, you may use it directly without asking.
+- If **no knowledge base** is attached, ask the user to upload one on the training data page.
 
-  Knowledgebases: 
-  ${
-    knowledgeBases.length > 0
-      ? knowledgeBases.map((kb) => {
-          return `
-      - name: ${kb.fileName}
-      - id: ${kb.id} (do not share the id directly with the user)
-      `;
-        })
-      : "No Knowledgebases Attached (ask user to upload a knowledgebase at the training data page)"
-  }
+🤖 **Agent Info**
+- Agent Name: ${name}
 
-  Additional Instructions:
-  ${systemPrompt}
-  `;
+🧠 **Persona Settings**
+${
+  personas
+    ? `- Sex: ${personas.sex}
+- Answer Preference: ${personas.answerPreference}
+- Formality: ${personas.formality}
+- Emoji Usage: ${personas.emojiUsage}
+- Default Language: ${personas.defaultLanguage}`
+    : "- No Persona Attached"
+}
+
+📚 **Knowledge Bases**
+${
+  knowledgeBases.length > 0
+    ? knowledgeBases
+        .map(
+          (kb, index) =>
+            `- ${index + 1}. Name: ${kb.fileName} (Use ID internally: ${kb.id})`,
+        )
+        .join("\n")
+    : "- No Knowledge Bases Attached"
+}
+
+📝 **Additional Instructions**
+${systemPrompt}
+  `.trim();
 }
 
 export function generateStreamResponse({
