@@ -12,13 +12,30 @@ export const generateEmbeddings = async (text: string): Promise<number[]> => {
   return embedding;
 };
 
+const MAX_BATCH_SIZE = 100;
+
+function chunkArray<T>(array: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+}
+
 export const generateMultipleEmbeddings = async (
   texts: string[],
 ): Promise<number[][]> => {
-  const { embeddings } = await embedMany({
-    model: embeddingModel,
-    values: texts,
-  });
+  const batches = chunkArray(texts, MAX_BATCH_SIZE);
+  const allEmbeddings: number[][] = [];
 
-  return embeddings;
+  for (const batch of batches) {
+    const { embeddings } = await embedMany({
+      model: embeddingModel,
+      values: batch,
+    });
+
+    allEmbeddings.push(...embeddings);
+  }
+
+  return allEmbeddings;
 };
