@@ -1,3 +1,4 @@
+import { requireAuth } from "@/lib/auth/auth-guard";
 import { getAgentBySlug } from "@/service/agents";
 import { generateId } from "ai";
 import { redirect } from "next/navigation";
@@ -8,6 +9,8 @@ export default async function PublicChatPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  await requireAuth(`/api/auth/signin?callbackUrl=/chat/${slug}`);
 
   const agent = await getAgentBySlug(slug);
 
