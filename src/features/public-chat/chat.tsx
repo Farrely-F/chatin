@@ -49,7 +49,7 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
   const { messages, handleSubmit, append, status, stop, setMessages } = useChat(
     {
       api: `/api/v1/agents/${agentDetails.id}/public/chat/stream`,
-      maxSteps: 2,
+      maxSteps: 5,
       body: {
         user_id: agentDetails?.userId,
       },
