@@ -52,4 +52,4 @@ async function handler(...args: ApiHandlerArgs) {
   }
 }
 
-export const GET = withAuth(handler, "chat");
+export const GET = withAuth(handler, "read");
