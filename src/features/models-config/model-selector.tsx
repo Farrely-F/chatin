@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { truncateCharacters } from "@/lib/utils";
 import { ModelDetails } from "@/service/model";
 import { useMemo } from "react";
 
@@ -56,7 +57,7 @@ export default function GroupedModelSelect({
                   value={model.id}
                   disabled={!model.isAvailable}
                 >
-                  {model.name}
+                  {truncateCharacters(model.name, 30)}
                 </SelectItem>
               ))}
             </SelectGroup>

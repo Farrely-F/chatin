@@ -160,6 +160,7 @@ export function RichTextEditor({
       updateHeadingValue(editor);
     },
     autofocus: "end",
+    immediatelyRender: false,
   });
 
   const updateHeadingValue = (editor: Editor) => {

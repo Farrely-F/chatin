@@ -21,7 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
-import { ArrowLeftFromLine, LayoutPanelLeftIcon } from "lucide-react";
+import { ArrowLeftFromLine, PanelRightDashed } from "lucide-react";
 import * as React from "react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -281,7 +281,7 @@ function SidebarTrigger({
       {!isOutsideSidebar ? (
         <ArrowLeftFromLine className="size-5" size={20} />
       ) : (
-        <LayoutPanelLeftIcon className="size-5" size={20} />
+        <PanelRightDashed className="size-5" size={20} />
       )}
       <span className="sr-only">
         {isOutsideSidebar ? "Collapse sidebar" : "Expand sidebar"}

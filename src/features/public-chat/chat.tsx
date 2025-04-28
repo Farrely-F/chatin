@@ -3,11 +3,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CodeBlock } from "@/components/ui/code-block";
+import { CopyButton } from "@/components/ui/copy-button";
 import { useChatStore } from "@/lib/chat-store";
 import { AgentDetails } from "@/service/agents";
 import { type Message, useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { StopCircle } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -17,6 +19,10 @@ import { z } from "zod";
 
 import { ChatMessage } from "../../components/ui/chat-message";
 import { Form, FormField } from "../../components/ui/form";
+
+const ChatDisclaimer = dynamic(() => import("./chat-disclaimer"), {
+  ssr: false,
+});
 
 const formSchema = z.object({
   message: z.string().trim().min(1),
@@ -61,7 +67,7 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
         saveChatHistory(slug, chatId, updated);
       },
       onError(error) {
-        toast.error(error.message);
+        toast.error(error instanceof Error ? error.message : error);
       },
     },
   );
@@ -110,6 +116,13 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
     });
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.handleSubmit(handleMessageSubmit)();
+    }
+  };
+
   return (
     <>
       {/* Chat Content */}
@@ -120,7 +133,18 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
               switch (part.type) {
                 case "text":
                   return (
-                    <ChatMessage isUser={msg.role === "user"} key={idx}>
+                    <ChatMessage
+                      agentName={agentDetails.name}
+                      className="group"
+                      isUser={msg.role === "user"}
+                      key={idx}
+                      messageActions={
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs group-hover:scale-100 scale-0 transition-transform ease-in-out origin-left">
+                          <CopyButton value={part?.text} />
+                          <p>Copy Message</p>
+                        </div>
+                      }
+                    >
                       <ReactMarkdown
                         components={{
                           code({ className, children, ...props }) {
@@ -133,12 +157,14 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
                                 value={String(children).replace(/\n$/, "")}
                               />
                             ) : (
-                              <code
-                                className="px-1.5 py-0.5 rounded bg-muted text-sm"
-                                {...props}
-                              >
-                                {children}
-                              </code>
+                              <pre className="w-full overflow-x-auto">
+                                <code
+                                  className="px-1.5 py-0.5 rounded bg-muted text-sm"
+                                  {...props}
+                                >
+                                  {children}
+                                </code>
+                              </pre>
                             );
                           },
                         }}
@@ -164,13 +190,25 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
               }
             });
           })}
+
+          {status !== "ready" &&
+            status !== "error" &&
+            status !== "streaming" && (
+              <ChatMessage isUser={false}>
+                <div className="flex items-center space-x-2">
+                  <div className="animate-pulse rounded-lg bg-muted w-24 h-4" />
+                  <div className="animate-pulse rounded-lg bg-muted w-16 h-4" />
+                  <div className="animate-pulse rounded-lg bg-muted w-20 h-4" />
+                </div>
+              </ChatMessage>
+            )}
           <div ref={messagesEndRef} aria-hidden="true" />
         </div>
       </div>
 
       {/* Input Footer */}
       <div className="sticky bottom-0 pt-4 md:pt-8 z-50">
-        <div className="max-w-3xl mx-auto bg-background rounded-[20px] pb-4 md:pb-8">
+        <div className="max-w-3xl mx-auto bg-background rounded-[20px] pb-2 md:pb-8">
           <div className="relative rounded-[20px] border border-transparent bg-muted transition-colors focus-within:bg-muted/50 focus-within:border-input has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 [&:has(input:is(:disabled))_*]:pointer-events-none">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleMessageSubmit)}>
@@ -183,16 +221,7 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
                       className="flex sm:min-h-[84px] w-full bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none [resize:none]"
                       placeholder="Ask me anything..."
                       aria-label="Enter your prompt"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                          e.preventDefault();
-                          if (status !== "ready") {
-                            stop();
-                            return;
-                          }
-                          form.handleSubmit(handleMessageSubmit)();
-                        }
-                      }}
+                      onKeyDown={handleKeyDown}
                     />
                   )}
                 />
@@ -216,6 +245,7 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
               </form>
             </Form>
           </div>
+          {messages.length > 0 && <ChatDisclaimer />}
         </div>
       </div>
     </>

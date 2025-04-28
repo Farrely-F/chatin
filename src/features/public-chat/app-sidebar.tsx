@@ -1,4 +1,4 @@
-import { Atom } from "lucide-react";
+import { Atom, Info } from "lucide-react";
 import Link from "next/link";
 
 import ChatHistory from "./chat-history";
@@ -52,7 +52,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter></SidebarFooter>
+      <SidebarFooter>
+        <SidebarGroup className="sm:hidden">
+          <SidebarGroupContent>
+            <p className="text-muted-foreground text-xs">
+              <Info className="size-3 inline-block mr-2" />
+              Swipe message to left to delete
+            </p>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarFooter>
     </Sidebar>
   );
 }

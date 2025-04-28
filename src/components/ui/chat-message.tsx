@@ -1,33 +1,29 @@
 import { cn } from "@/lib/utils";
-import { BotMessageSquareIcon, UserCircle2Icon } from "lucide-react";
+import { UserCircle2Icon } from "lucide-react";
 
 type ChatMessageProps = {
-  isUser?: boolean;
   children: React.ReactNode;
+  isUser?: boolean;
+  messageActions?: React.ReactNode;
+  className?: string;
+  agentName?: string;
 };
 
-export function ChatMessage({ isUser, children }: ChatMessageProps) {
+export function ChatMessage({
+  isUser,
+  children,
+  messageActions,
+  className,
+  agentName,
+}: ChatMessageProps) {
   return (
     <article
       className={cn(
         "flex items-start gap-4 text-[15px] leading-relaxed",
         isUser && "flex-row-reverse",
+        className,
       )}
     >
-      {/* <Image
-        className={cn(
-          "rounded-full",
-          isUser ? "order-1" : "border border-black/[0.08] shadow-sm",
-        )}
-        src={
-          isUser
-            ? "https://res.cloudinary.com/dlzlfasou/image/upload/v1741345634/user-02_mlqqqt.png"
-            : "https://res.cloudinary.com/dlzlfasou/image/upload/v1741345634/user-01_i5l7tp.png"
-        }
-        alt={isUser ? "User profile" : "Bart logo"}
-        width={40}
-        height={40}
-      /> */}
       {isUser ? (
         <UserCircle2Icon
           width={40}
@@ -36,11 +32,9 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
           className="size-8 min-w-8 text-muted-foreground"
         />
       ) : (
-        <BotMessageSquareIcon
-          width={40}
-          height={40}
-          className="size-8 min-w-8 text-muted-foreground"
-        />
+        <div className="size-8 aspect-square grid place-content-center bg-muted rounded-full text-sidebar text-xs uppercase">
+          {agentName?.substring(0, 2)}
+        </div>
       )}
       <div
         className={cn(
@@ -51,42 +45,8 @@ export function ChatMessage({ isUser, children }: ChatMessageProps) {
           <p className="sr-only">{isUser ? "You" : "Assistant"} said:</p>
           {children}
         </div>
-        {!isUser && <MessageActions />}
+        {!isUser && messageActions}
       </div>
     </article>
-  );
-}
-
-// type ActionButtonProps = {
-//   icon: React.ReactNode;
-//   label: string;
-// };
-
-// function ActionButton({ icon, label }: ActionButtonProps) {
-//   return (
-//     <Tooltip>
-//       <TooltipTrigger asChild>
-//         <button className="relative text-muted-foreground/80 hover:text-foreground transition-colors size-8 flex items-center justify-center before:absolute before:inset-y-1.5 before:left-0 before:w-px before:bg-border first:before:hidden first-of-type:rounded-s-lg last-of-type:rounded-e-lg focus-visible:z-10 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring/70">
-//           {icon}
-//           <span className="sr-only">{label}</span>
-//         </button>
-//       </TooltipTrigger>
-//       <TooltipContent side="bottom" className="dark px-2 py-1 text-xs">
-//         <p>{label}</p>
-//       </TooltipContent>
-//     </Tooltip>
-//   );
-// }
-
-function MessageActions() {
-  return (
-    <div className="relative inline-flex bg-white rounded-md border border-black/[0.08] shadow-sm -space-x-px">
-      {/* <TooltipProvider delayDuration={0}>
-        <ActionButton icon={<RiCodeSSlashLine size={16} />} label="Show code" />
-        <ActionButton icon={<RiBookLine size={16} />} label="Bookmark" />
-        <ActionButton icon={<RiLoopRightFill size={16} />} label="Refresh" />
-        <ActionButton icon={<RiCheckLine size={16} />} label="Approve" />
-      </TooltipProvider> */}
-    </div>
   );
 }

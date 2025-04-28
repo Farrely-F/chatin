@@ -213,11 +213,13 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                 />
 
                 {file ? (
-                  <div className="flex flex-col items-center">
+                  <div className="flex flex-col items-center @container">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="font-medium mb-1">{file.name}</p>
+                    <p className="font-medium mb-1 truncate @max-xs:w-[200px]">
+                      {file.name}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
