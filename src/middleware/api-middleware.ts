@@ -32,14 +32,19 @@ export function withAuth<
   scopes: "chat" | "read" | "write",
 ) {
   return async (req: NextRequest, context: Ctx): Promise<Response> => {
-    const host = req.headers.get("host");
+    const origin =
+      req.headers.get("origin") || req.headers.get("referer") || "";
+    const isInternalRequest = origin.includes(AUTHORIZED_DOMAIN);
 
-    if (!host?.includes(AUTHORIZED_DOMAIN)) {
+    if (!isInternalRequest) {
       const authHeader = req.headers.get("Authorization");
       const token = authHeader?.split("Bearer ")[1];
 
       if (!token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return NextResponse.json(
+          { status: false, error: "Missing API Key" },
+          { status: 401 },
+        );
       }
 
       const authorized = await verifyApiKey(token);
@@ -51,7 +56,10 @@ export function withAuth<
         !authorized.scopes?.includes(scopes);
 
       if (unauthorized) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return NextResponse.json(
+          { status: false, error: "Invalid API Key" },
+          { status: 401 },
+        );
       }
 
       const reqWithAuth = Object.assign(req, { authorized });
