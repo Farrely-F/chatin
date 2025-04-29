@@ -1,12 +1,12 @@
 import { AnimatedCard } from "@/components/ui/animated-card";
 import DashboardLayout from "@/components/ui/layout/dashboard-layout";
 import { getCurrentUser } from "@/lib/auth/auth";
-import { getAllAgents } from "@/service/agents";
+import { getUserStatistics } from "@/service/dashboard-report";
 
 export default async function DashboardPage() {
   const session = await getCurrentUser();
 
-  const createdAgents = await getAllAgents(session?.id || "");
+  const report = await getUserStatistics(session?.id || "");
 
   return (
     <DashboardLayout>
@@ -19,21 +19,22 @@ export default async function DashboardPage() {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <AnimatedCard
+          withArrow
           title="Created Agents:"
           className="min-h-40"
           navigateTo="/dashboard/agents"
         >
           <div className="flex items-end justify-end h-full pb-10">
             <p className="text-muted-foreground font-bold text-3xl mt-auto">
-              {createdAgents?.length}
+              {report?.totalAgents}
             </p>
           </div>
         </AnimatedCard>
 
         <AnimatedCard title="Most used LLM Provider:" className="min-h-40">
           <div className="flex items-end justify-end h-full pb-10">
-            <p className="text-muted-foreground font-bold text-3xl mt-auto">
-              Google
+            <p className="text-muted-foreground font-bold text-3xl mt-auto capitalize">
+              {report?.mostUsedModel?.modelProvider || "None"}
             </p>
           </div>
         </AnimatedCard>
