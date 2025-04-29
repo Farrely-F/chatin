@@ -8,7 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Permissions } from "@/service/permissions";
+import { useState } from "react";
 
+import BatchDeletePermission from "./batch-delete-permission";
 import { CreatePermissionDialog } from "./create-permission-dialog";
 import { PermissionsTable } from "./permission-table";
 
@@ -19,7 +21,8 @@ export function PermissionManagement({
   userId: string;
   permissions: Permissions[];
 }) {
-  // Extract categories from permissions for filtering
+  const [batchSelectIds, setBatchSelectIds] = useState<string[]>([]);
+
   const categories = Array.from(
     new Set(
       permissions?.map((p) => {
@@ -38,10 +41,23 @@ export function PermissionManagement({
             Manage the permissions that can be assigned to roles.
           </CardDescription>
         </div>
-        <CreatePermissionDialog userId={userId} />
+        <div className="flex items-center gap-1">
+          {batchSelectIds.length > 0 && (
+            <BatchDeletePermission
+              ids={batchSelectIds}
+              setBatchSelectIds={setBatchSelectIds}
+            />
+          )}
+          <CreatePermissionDialog userId={userId} />
+        </div>
       </CardHeader>
       <CardContent className="@container">
-        <PermissionsTable categories={categories} permissions={permissions} />
+        <PermissionsTable
+          batchSelectIds={batchSelectIds}
+          setBatchSelectIds={setBatchSelectIds}
+          categories={categories}
+          permissions={permissions}
+        />
       </CardContent>
     </Card>
   );

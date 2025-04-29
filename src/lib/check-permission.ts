@@ -3,6 +3,9 @@
 import { db } from "@/db";
 import { permissions, rolePermissions, roles, userRoles } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
+
+import { getCurrentUser } from "./auth/auth";
 
 export async function hasPermission(userId: string, permission: string) {
   try {
@@ -25,6 +28,25 @@ export async function hasPermission(userId: string, permission: string) {
   } catch {
     return false;
   }
+}
+
+export async function protectedPage(permission: string) {
+  const user = await getCurrentUser();
+
+  const [isAdmin, authorized] = await Promise.all([
+    hasPermission(user?.id as string, "system.create"),
+    hasPermission(user?.id as string, permission),
+  ]);
+
+  if (isAdmin) {
+    return;
+  }
+
+  if (!authorized) {
+    return redirect("/dashboard");
+  }
+
+  return;
 }
 
 export async function getUserPermissions(userId: string): Promise<string[]> {
