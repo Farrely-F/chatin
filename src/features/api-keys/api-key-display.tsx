@@ -29,6 +29,17 @@ export function ApiKeyDisplay({ apiKey, onDone }: ApiKeyDisplayProps) {
     }
   };
 
+  const renderedApiKey = (key: string) => {
+    const [first, rest] = key.split("-");
+
+    const maskedRest = rest
+      .split("")
+      .map(() => "*")
+      .join("");
+
+    return `${first}-${maskedRest}`;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -43,7 +54,7 @@ export function ApiKeyDisplay({ apiKey, onDone }: ApiKeyDisplayProps) {
         </div>
 
         <div className="p-3 bg-muted rounded-md font-mono text-sm break-all relative">
-          {apiKey}
+          {renderedApiKey(apiKey)}
           <Button
             size="sm"
             variant="ghost"

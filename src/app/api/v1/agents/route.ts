@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 type SearchParams = {
   name?: string;
   status?: "active" | "archived";
-  modelId?: string;
+  model_id?: string;
 };
 
 async function handler(...args: ApiHandlerArgs) {
@@ -23,12 +23,12 @@ async function handler(...args: ApiHandlerArgs) {
 
   const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
 
-  const { name, status, modelId } = searchParams as SearchParams;
+  const { name, status, model_id } = searchParams as SearchParams;
 
   const conditions = [];
   if (name) conditions.push(ilike(agents.name, `%${name}%`));
   if (status) conditions.push(eq(agents.status, status));
-  if (modelId) conditions.push(eq(agents.modelId, modelId));
+  if (model_id) conditions.push(eq(agents.modelId, model_id));
 
   try {
     const results = await db.query.agents.findMany({

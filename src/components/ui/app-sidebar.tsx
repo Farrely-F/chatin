@@ -12,132 +12,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-  Atom,
-  BookText,
-  Bot,
-  Code2Icon,
-  Home,
-  KeyIcon,
-  LogOut,
-  MessageCircleMore,
-  SendIcon,
-  UserCircle,
-  UserPen,
-  Wrench,
-} from "lucide-react";
+import { data } from "@/constant/side-menu";
+import { Atom } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const data = {
-  navMain: [
-    {
-      title: "Navigation",
-      url: "#",
-      disabled: false,
-      items: [
-        {
-          title: "Home",
-          url: "/dashboard",
-          icon: Home,
-          disabled: false,
-        },
-        {
-          title: "Agents",
-          url: "/dashboard/agents",
-          icon: Bot,
-          disabled: false,
-        },
-        {
-          title: "Personas",
-          url: "/dashboard/personas",
-          icon: UserPen,
-          disabled: false,
-        },
-      ],
-    },
-    {
-      title: "System",
-      url: "#",
-      disabled: false,
-      permission: "system.read",
-      items: [
-        {
-          title: "User Management",
-          url: "/dashboard/user-management",
-          icon: UserCircle,
-          disabled: false,
-        },
-        {
-          title: "Permission",
-          url: "/dashboard/roles-and-permissions",
-          icon: KeyIcon,
-          disabled: false,
-        },
-        {
-          title: "Model Management",
-          url: "/dashboard/model-management",
-          icon: Wrench,
-          disabled: false,
-        },
-      ],
-    },
-    {
-      title: "Integration",
-      url: "#",
-      disabled: true,
-      items: [
-        {
-          title: "Telegram",
-          url: "",
-          icon: SendIcon,
-          disabled: true,
-        },
-        {
-          title: "WhatsApp",
-          url: "",
-          icon: MessageCircleMore,
-          disabled: true,
-        },
-        {
-          title: "Widget",
-          url: "",
-          icon: MessageCircleMore,
-          disabled: true,
-        },
-      ],
-    },
-    {
-      title: "Developer",
-      url: "#",
-      disabled: false,
-      items: [
-        {
-          title: "API",
-          url: "/dashboard/api-keys",
-          icon: Code2Icon,
-          disabled: false,
-        },
-        {
-          title: "Documentation",
-          url: "",
-          icon: BookText,
-          disabled: true,
-        },
-      ],
-    },
-  ],
-  footerAction: [
-    {
-      title: "Logout",
-      url: "",
-      icon: LogOut,
-    },
-  ],
-};
-
 const hasPermission = (required?: string, userPermissions: string[] = []) => {
+  if (userPermissions.includes("system.read")) return true;
   if (!required) return true;
   return userPermissions.includes(required);
 };
@@ -166,30 +48,34 @@ export function AppSidebar({
               </SidebarGroupLabel>
               <SidebarGroupContent className="px-2">
                 <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        className="group/menu-button font-medium gap-3 h-9 rounded-md [&>svg]:size-auto"
-                        isActive={item.url === pathname}
-                        disabled={item.disabled}
-                      >
-                        <Link
-                          href={item.url}
-                          className={item.disabled ? "opacity-20" : ""}
+                  {group.items
+                    .filter((item) =>
+                      hasPermission(item.permission, permissions),
+                    )
+                    .map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton
+                          asChild
+                          className="group/menu-button font-medium gap-3 h-9 rounded-md [&>svg]:size-auto"
+                          isActive={item.url === pathname}
+                          disabled={item.disabled}
                         >
-                          {item.icon && (
-                            <item.icon
-                              className="text-sidebar-foreground/50 group-data-[active=true]/menu-button:text-primary"
-                              size={18}
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                          <Link
+                            href={item.url}
+                            className={item.disabled ? "opacity-20" : ""}
+                          >
+                            {item.icon && (
+                              <item.icon
+                                className="text-sidebar-foreground/50 group-data-[active=true]/menu-button:text-primary"
+                                size={18}
+                                aria-hidden="true"
+                              />
+                            )}
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

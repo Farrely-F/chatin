@@ -12,23 +12,32 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { deleteApiKey, revokeApiKey } from "@/service/api-key";
+import { withPermission } from "@/lib/check-permission";
+import { batchDeletePermission } from "@/service/permissions";
+import { Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
-export default function ApiKeyAction({
-  action,
-  id,
+export default function BatchDeletePermission({
+  ids,
+  setBatchSelectIds,
 }: {
-  action: "revoke" | "delete";
-  id: string;
+  ids: string[];
+  setBatchSelectIds: (ids: string[]) => void;
 }) {
+  const { data: session } = useSession();
   const [isPending, startTransition] = useTransition();
-
-  const handleApiKeyAction = () => {
+  const handleDelete = () => {
     startTransition(async () => {
-      const res =
-        action === "revoke" ? await revokeApiKey(id) : await deleteApiKey(id);
+      const res = await withPermission(
+        {
+          action: batchDeletePermission,
+          permission: "system.delete",
+          userId: session?.user.id || "",
+        },
+        ids,
+      );
 
       if ("error" in res) {
         toast.error(res.error);
@@ -36,41 +45,29 @@ export default function ApiKeyAction({
       }
 
       toast.success(res.message);
+      setBatchSelectIds([]);
     });
   };
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button
-          disabled={isPending}
-          size="sm"
-          variant={action === "revoke" ? "outline" : "destructive"}
-          type="submit"
-        >
-          {action === "revoke" ? "Revoke" : "Delete"}
+        <Button variant={"outline"} size={"icon"} className="text-destructive">
+          <Trash2 />
         </Button>
       </AlertDialogTrigger>
-
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-
           <AlertDialogDescription>
-            This action is irreversible.
+            This action cannot be undone. This will permanently delete your
+            permission.
           </AlertDialogDescription>
         </AlertDialogHeader>
-
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction
-            disabled={isPending}
-            className="bg-destructive hover:bg-red-600"
-            onClick={handleApiKeyAction}
-          >
-            Proceed
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+            Continue
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

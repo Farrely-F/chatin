@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,11 +29,15 @@ import { PermissionDetailsDialog } from "./permission-details-dialog";
 interface PermissionsTableProps {
   permissions: Permissions[];
   categories: string[];
+  batchSelectIds: string[];
+  setBatchSelectIds: (ids: string[]) => void;
 }
 
 export function PermissionsTable({
   permissions,
   categories,
+  batchSelectIds,
+  setBatchSelectIds,
 }: PermissionsTableProps) {
   const [selectedPermission, setSelectedPermission] =
     useState<Permissions | null>(null);
@@ -60,6 +65,14 @@ export function PermissionsTable({
 
     return matchesSearch && matchesCategory;
   });
+
+  const handleBatchSelect = (permissionId: string) => {
+    if (batchSelectIds.includes(permissionId)) {
+      setBatchSelectIds(batchSelectIds.filter((id) => id !== permissionId));
+    } else {
+      setBatchSelectIds([...batchSelectIds, permissionId]);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -94,6 +107,27 @@ export function PermissionsTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>
+              <Checkbox
+                onCheckedChange={() => {
+                  if (batchSelectIds.length === filteredPermissions?.length) {
+                    setBatchSelectIds([]);
+                  } else {
+                    setBatchSelectIds(
+                      filteredPermissions?.map((permission) => permission.id) ||
+                        [],
+                    );
+                  }
+                }}
+                checked={
+                  batchSelectIds.length === filteredPermissions?.length
+                    ? true
+                    : batchSelectIds.length > 0
+                      ? "indeterminate"
+                      : false
+                }
+              />
+            </TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Permission</TableHead>
             <TableHead>Description</TableHead>
@@ -114,6 +148,12 @@ export function PermissionsTable({
           ) : (
             filteredPermissions?.map((permission) => (
               <TableRow key={permission.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={batchSelectIds.some((id) => id === permission.id)}
+                    onCheckedChange={() => handleBatchSelect(permission.id)}
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{permission.name}</TableCell>
                 <TableCell>
                   <code className="bg-muted px-1.5 py-0.5 rounded text-sm">

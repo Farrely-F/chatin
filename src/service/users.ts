@@ -3,6 +3,8 @@
 import { db } from "@/db";
 import { roles, userRoles, users } from "@/db/schema";
 import { hasPermission } from "@/lib/check-permission";
+import { RegisterSchema } from "@/schema/user-auth-schema";
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -62,18 +64,23 @@ export async function getAllUsersWithRoles() {
   }
 }
 
-export async function createUser(
-  userId: string,
-  data: typeof users.$inferInsert,
-) {
+export async function createUser(userId: string, data: RegisterSchema) {
   const authorized = await hasPermission(userId, "system.create");
 
   if (!authorized) {
     return { error: "Unauthorized" };
   }
 
+  const hashedPassword = await bcrypt.hash(data.password, 10);
+
   try {
-    const [newUser] = await db.insert(users).values(data).returning();
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        ...data,
+        passwordHash: hashedPassword,
+      })
+      .returning();
 
     revalidatePath("/dashboard/user-management");
 

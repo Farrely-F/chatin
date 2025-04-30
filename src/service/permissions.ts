@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { permissions } from "@/db/schema";
 import { AddPermissionSchema } from "@/schema/permission-schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getAllPermissions() {
@@ -38,6 +38,23 @@ export async function deletePermission(id: string) {
 
     return {
       message: "Permission deleted successfully",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
+export async function batchDeletePermission(id: string[]) {
+  try {
+    await db.delete(permissions).where(inArray(permissions.id, id));
+
+    revalidatePath("/dashboard", "layout");
+
+    return {
+      message: "Permissions deleted successfully",
     };
   } catch (error) {
     console.error(error);
