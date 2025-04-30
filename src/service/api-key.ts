@@ -106,10 +106,10 @@ export async function revokeApiKey(apiKeyId: string) {
       .where(eq(apiKeys.id, apiKeyId));
 
     revalidatePath("/dashboard/api-keys");
-    return { success: true };
+    return { message: "API key revoked successfully" };
   } catch (error) {
     console.error("Failed to revoke API key:", error);
-    return { success: false, error: "Failed to revoke API key" };
+    return { error: "Failed to revoke API key" };
   }
 }
 
@@ -118,9 +118,9 @@ export async function deleteApiKey(apiKeyId: string) {
     await db.delete(apiKeys).where(eq(apiKeys.id, apiKeyId));
 
     revalidatePath("/dashboard/api-keys");
-    return { success: true };
+    return { message: "API key deleted successfully" };
   } catch (error) {
     console.error("Failed to delete API key:", error);
-    return { success: false, error: "Failed to delete API key" };
+    return { error: "Failed to delete API key" };
   }
 }

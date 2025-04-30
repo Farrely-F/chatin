@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { deleteApiKey, revokeApiKey } from "@/service/api-key";
+import { useTransition } from "react";
+import { toast } from "sonner";
 
 export default function ApiKeyAction({
   action,
@@ -21,10 +23,27 @@ export default function ApiKeyAction({
   action: "revoke" | "delete";
   id: string;
 }) {
+  const [isPending, startTransition] = useTransition();
+
+  const handleApiKeyAction = () => {
+    startTransition(async () => {
+      const res =
+        action === "revoke" ? await revokeApiKey(id) : await deleteApiKey(id);
+
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+
+      toast.success(res.message);
+    });
+  };
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
+          disabled={isPending}
           size="sm"
           variant={action === "revoke" ? "outline" : "destructive"}
           type="submit"
@@ -47,12 +66,9 @@ export default function ApiKeyAction({
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
+            disabled={isPending}
             className="bg-destructive hover:bg-red-600"
-            onClick={
-              action === "delete"
-                ? () => deleteApiKey(id)
-                : () => revokeApiKey(id)
-            }
+            onClick={handleApiKeyAction}
           >
             Proceed
           </AlertDialogAction>

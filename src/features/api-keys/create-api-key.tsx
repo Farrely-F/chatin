@@ -23,8 +23,9 @@ import {
 import { createApiKey } from "@/service/api-key";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { ApiKeyDisplay } from "./api-key-display";
@@ -39,7 +40,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function CreateApiKeyForm({ userId }: { userId: string }) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
@@ -52,9 +53,7 @@ export function CreateApiKeyForm({ userId }: { userId: string }) {
   });
 
   async function onSubmit(values: FormValues) {
-    setIsSubmitting(true);
-
-    try {
+    startTransition(async () => {
       const expiresAt =
         values.expiresIn === "never"
           ? null
@@ -68,16 +67,17 @@ export function CreateApiKeyForm({ userId }: { userId: string }) {
         scopes: values.scopes,
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
       });
+
       if (result.key) {
         setNewApiKey(result.key.key);
         form.reset();
         router.refresh();
+        toast.success("API key created successfully");
+        return;
       }
-    } catch (error) {
-      console.error("Failed to create API key:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+
+      toast.error(result.error || "Failed to create API key");
+    });
   }
 
   const availableScopes = [
@@ -198,10 +198,10 @@ export function CreateApiKeyForm({ userId }: { userId: string }) {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmitting}
+                disabled={isPending}
                 variant={"gradient"}
               >
-                {isSubmitting ? "Creating..." : "Create API Key"}
+                {isPending ? "Creating..." : "Create API Key"}
               </Button>
             </form>
           </Form>
