@@ -122,6 +122,7 @@ export function generateStreamResponse({
   }
 
   const response = streamText({
+    maxSteps: 5,
     model,
     system: generateSysPrompt(agentConfig),
     messages,
@@ -151,6 +152,7 @@ export function generateTextResponse({
   }
 
   const response = generateText({
+    maxSteps: 5,
     model,
     system: generateSysPrompt(agentConfig),
     messages,

@@ -15,3 +15,14 @@ export function slugify(text: string): string {
     .replace(/-+/g, "-") // collapse multiple hyphens
     .replace(/^-+|-+$/g, ""); // trim hyphens from start and end
 }
+
+export function truncateWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text;
+  return words.slice(0, maxWords).join(" ") + "...";
+}
+
+export function truncateCharacters(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+}

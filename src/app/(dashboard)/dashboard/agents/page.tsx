@@ -92,28 +92,28 @@ export default async function AgentPage() {
         ) : (
           <div className="grid sm:grid-cols-3 gap-4 items-stretch">
             {agents?.map((agent) => (
-              <Link
-                href={`/dashboard/agents/${agent.id}`}
-                key={agent.id}
-                className={agent.model.isAvailable ? "" : "opacity-50"}
-              >
-                <PulseCard
-                  actionButton={
-                    <DeleteAgent
-                      userId={user?.id || ""}
-                      agentId={agent.id}
-                      className="absolute top-4 right-2"
-                    />
-                  }
-                  icon={
-                    <agent.icon className="size-5 grid place-content-center" />
-                  }
-                  title={agent.name}
-                  description={agent.description!}
-                  variant={agent.color}
-                  className={`border w-full h-full`}
+              <div key={agent.id} className="relative">
+                <Link
+                  href={`/dashboard/agents/${agent.id}`}
+                  className={agent.model.isAvailable ? "" : "opacity-50"}
+                >
+                  <PulseCard
+                    icon={
+                      <agent.icon className="size-5 grid place-content-center" />
+                    }
+                    title={agent.name}
+                    description={agent.description!}
+                    variant={agent.color}
+                    className={`border w-full h-full`}
+                  />
+                </Link>
+
+                <DeleteAgent
+                  userId={user?.id || ""}
+                  agentId={agent.id}
+                  className="absolute top-4 right-2"
                 />
-              </Link>
+              </div>
             ))}
           </div>
         )}

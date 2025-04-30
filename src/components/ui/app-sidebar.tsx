@@ -197,7 +197,7 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter>
         <SidebarGroup>
-          <SidebarGroupContent className="px-2">
+          <SidebarGroupContent>
             <SidebarMenu>
               {data.footerAction.map((item) => (
                 <SidebarMenuItem key={item.title}>

@@ -15,7 +15,9 @@ import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { Badge } from "./badge";
 import { ChatMessage } from "./chat-message";
+import { CodeBlock } from "./code-block";
 import { Form, FormField } from "./form";
 
 const formSchema = z.object({
@@ -50,7 +52,7 @@ export default function Chat({
     body: {
       user_id: userId,
     },
-    maxSteps: 2,
+    maxSteps: 5,
     onFinish(_, options) {
       setUsedToken(options?.usage?.totalTokens ?? 0);
     },
@@ -76,6 +78,13 @@ export default function Chat({
         message: "",
       });
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.handleSubmit(handleMessageSubmit)();
+    }
   };
 
   return (
@@ -106,17 +115,72 @@ export default function Chat({
       {/* Chat */}
       <div className="relative grow">
         <div className="max-w-3xl mx-auto mt-6 space-y-6">
-          {messages.map((msg) =>
-            msg.content.length > 0 ? (
-              <ChatMessage key={msg.id} isUser={msg.role === "user"}>
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+          {messages.map((msg) => {
+            return msg.parts.map((part, idx) => {
+              switch (part.type) {
+                case "text":
+                  return (
+                    <ChatMessage
+                      agentName={agentDetails.name}
+                      className="group"
+                      isUser={msg.role === "user"}
+                      key={idx}
+                    >
+                      <ReactMarkdown
+                        components={{
+                          code({ className, children, ...props }) {
+                            const match = /language-(\w+)/.exec(
+                              className || "",
+                            );
+                            return match ? (
+                              <CodeBlock
+                                language={match[1]}
+                                value={String(children).replace(/\n$/, "")}
+                              />
+                            ) : (
+                              <code
+                                className="px-1.5 py-0.5 rounded bg-muted text-sm"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+                            );
+                          },
+                        }}
+                      >
+                        {part.text}
+                      </ReactMarkdown>
+                    </ChatMessage>
+                  );
+                case "tool-invocation":
+                  if (msg.content.length === 0) {
+                    return (
+                      <Badge
+                        variant={"secondary"}
+                        key={part.toolInvocation.toolCallId}
+                        className="italic"
+                      >
+                        🛠️ {part.toolInvocation.toolName.split("_").join(" ")}
+                      </Badge>
+                    );
+                  }
+                default:
+                  return null;
+              }
+            });
+          })}
+
+          {status !== "ready" &&
+            status !== "error" &&
+            status !== "streaming" && (
+              <ChatMessage isUser={false}>
+                <div className="flex items-center space-x-2">
+                  <div className="animate-pulse rounded-lg bg-muted w-24 h-4" />
+                  <div className="animate-pulse rounded-lg bg-muted w-16 h-4" />
+                  <div className="animate-pulse rounded-lg bg-muted w-20 h-4" />
+                </div>
               </ChatMessage>
-            ) : (
-              <span key={msg.id} className="italic font-light">
-                {"calling tool: " + msg?.toolInvocations?.[0].toolName}
-              </span>
-            ),
-          )}
+            )}
           <div ref={messagesEndRef} aria-hidden="true" />
         </div>
       </div>
@@ -136,16 +200,7 @@ export default function Chat({
                       className="flex sm:min-h-[84px] w-full bg-transparent px-4 py-3 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none [resize:none]"
                       placeholder="Ask me anything..."
                       aria-label="Enter your prompt"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                          e.preventDefault();
-                          if (status !== "ready") {
-                            stop();
-                            return;
-                          }
-                          form.handleSubmit(handleMessageSubmit)();
-                        }
-                      }}
+                      onKeyDown={handleKeyDown}
                     />
                   )}
                 />
