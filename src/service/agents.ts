@@ -46,6 +46,19 @@ export async function getAllAgentsByUserId(userId: string) {
   return res;
 }
 
+export async function getDeployedAgents() {
+  const res = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      slug: agents.slug,
+    })
+    .from(agents)
+    .where(eq(agents.status, "active"));
+  return res || [];
+}
+
 export async function getAgentById(id: string, userId: string) {
   try {
     const [res] = await db
