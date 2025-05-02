@@ -8,6 +8,8 @@ import { getDeployedAgents } from "@/service/agents";
 import { MessageCircle } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function DeployedAgents() {
   const agents = await getDeployedAgents();
 

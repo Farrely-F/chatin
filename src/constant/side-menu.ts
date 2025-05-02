@@ -129,14 +129,17 @@ export const data: {
       title: "Developer",
       url: "#",
       disabled: false,
+      permission: "developer.read",
       items: [
         {
+          permission: "developer.create",
           title: "API",
           url: "/dashboard/api-keys",
           icon: Code2Icon,
           disabled: false,
         },
         {
+          permission: "developer.read",
           title: "Documentation",
           url: "",
           icon: BookText,

@@ -14,6 +14,14 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ChatIn",
   description: "Internal Agent Management Tools",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 };
 
 export default function RootLayout({
