@@ -1,0 +1,129 @@
+name: Build and Deploy Staging
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_COMPOSE_SERVICE_NAME: chatin-web
+  IMAGE_NAME: chatin/web
+
+jobs:
+  notify-start:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Send Slack Notification (Start)
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+        --data '{
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": ":large_yellow_circle: *CI Pipeline Started* :large_yellow_circle:\n\n*A new CI job has just started for the staging env.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main` *Env:* Staging"
+              }
+            }
+          ]
+        }' \
+        https://hooks.slack.com/services/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
+
+  build-chatin:
+    needs: notify-start
+    environment:
+      name: staging
+    runs-on: internal-tools
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Decode Config File
+      run: echo -n "${{ secrets.CONFIG_STAGING }}" | base64 -d > .env
+
+    - name: Docker Login
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ vars.LOCAL_DOCKER_REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:staging
+          
+  deploy: 
+    needs: build-chatin
+    environment:
+      name: staging
+    runs-on: internal-tools
+    steps: 
+    - name: Docker Login
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ vars.LOCAL_DOCKER_REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Rollout restart deploy docker
+      run: |
+        docker compose -f /var/deployment/chatin/docker-compose.yaml down ${{ env.DOCKER_COMPOSE_SERVICE_NAME }}
+        docker compose -f /var/deployment/chatin/docker-compose.yaml up -d ${{ env.DOCKER_COMPOSE_SERVICE_NAME }}
+
+  cleanup:
+    needs: [deploy]
+    environment:
+      name: staging
+    runs-on: internal-tools
+    steps:
+      - name: Clean up local images
+        run: |
+            docker rmi ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  notify-success:
+    needs: [build-chatin, deploy]
+    runs-on: self-hosted
+    if: success()
+    steps:
+    - name: Send Slack Notification (Completion)
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+        --data '{
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": ":green_apple: *CI Pipeline Success* :green_apple:\n\n*The CI job for staging env has completed successfully.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main`"
+              }
+            }
+          ]
+        }' \
+        https://hooks.slack.com/services/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
+          
+
+  notify-failure: 
+    needs: [build-chatin, deploy]
+    runs-on: self-hosted
+    if: failure()
+    steps:
+    - name: Send Slack Notification (Failure)
+      run: |
+        curl -X POST -H 'Content-type: application/json' \
+        --data '{
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": ":red_circle: *CI Pipeline Failed* :red_circle:\n\n*The CI job for staging env has failed.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main`"
+              }
+            }
+          ]
+        }' \
+        https://hooks.slack.com/services/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
