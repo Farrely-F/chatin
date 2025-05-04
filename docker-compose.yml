@@ -4,7 +4,7 @@ services:
   chatin-web:
     build:
       context: .
-      dockerfile: dockerfile
+      dockerfile: Dockerfile.dev
       target: runner
     environment:
       - NODE_ENV=production
