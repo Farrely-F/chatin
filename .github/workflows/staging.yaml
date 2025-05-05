@@ -48,14 +48,16 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build and Push Docker Image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:staging
+    - name: Build Docker Image for Chatin Web
+      run: |
+        docker build -f Dockerfile \
+        -t ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+        -t ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:staging .
+     
+    - name: Push Docker Image to Registry
+      run: |
+        docker push ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ vars.LOCAL_DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:staging
           
   deploy: 
     needs: build-chatin
