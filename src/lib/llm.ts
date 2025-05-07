@@ -127,7 +127,9 @@ export function generateStreamResponse({
     system: generateSysPrompt(agentConfig),
     messages,
     temperature: agentConfig.temperature || 0.7,
-    tools: llmToolsConfig({ messages, agentId, agentConfig }),
+    tools: agentConfig.model.supportsToolUse
+      ? llmToolsConfig({ agentId, agentConfig })
+      : undefined,
     topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
@@ -157,7 +159,9 @@ export function generateTextResponse({
     system: generateSysPrompt(agentConfig),
     messages,
     temperature: agentConfig.temperature || 0.7,
-    tools: llmToolsConfig({ messages, agentId, agentConfig }),
+    tools: agentConfig.model.supportsToolUse
+      ? llmToolsConfig({ agentId, agentConfig })
+      : undefined,
     topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
   });
@@ -166,11 +170,9 @@ export function generateTextResponse({
 }
 
 function llmToolsConfig({
-  messages,
   agentId,
   agentConfig,
 }: {
-  messages: CoreMessage[];
   agentId: string;
   agentConfig: AgentWithKnowledgeBase;
 }) {
@@ -188,11 +190,12 @@ function llmToolsConfig({
           .describe(
             "The knowledge base id of the user selected knowledge base from your system prompt",
           ),
+        userQuestion: z.string().describe("The user's question"),
       }),
-      execute: async ({ knowledgeBaseId }) => {
+      execute: async ({ knowledgeBaseId, userQuestion }) => {
         console.log("Calling Retrieve Context");
         const context = await searchSimilarChunks({
-          query: messages[messages.length - 1].content as string,
+          query: userQuestion,
           agentId,
           knowledgeBaseId,
           topK: agentConfig.topK || 5,
