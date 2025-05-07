@@ -18,7 +18,7 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { getAllModels } from "@/service/model";
 import { getAllPersonas } from "@/service/personas";
-import { ArrowUpRight, BotIcon } from "lucide-react";
+import { ArrowUpRight, BotIcon, Wrench } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -117,9 +117,15 @@ export default async function AgentDetailPage({
           <Badge variant={"secondary"}>
             knowledgebase: {agentDetails.knowledgeBases.length}
           </Badge>
-          <Badge variant={"secondary"}>
+          <Badge variant={"secondary"} className="lowercase">
             persona: {agentDetails?.personas?.name || "none"}
           </Badge>
+          {agentDetails.model?.supportsToolUse && (
+            <Badge variant={"secondary"} className="lowercase">
+              <Wrench className="text-muted-foreground" />
+              support tool use
+            </Badge>
+          )}
         </div>
         {agentDetails.description && (
           <AnimatedCard

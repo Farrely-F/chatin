@@ -114,7 +114,7 @@ export default function Chat({
 
       {/* Chat */}
       <div className="relative grow">
-        <div className="max-w-3xl mx-auto mt-6 space-y-6">
+        <div className="max-w-3xl mx-auto mt-6 space-y-6 space-x-2">
           {messages.map((msg) => {
             return msg.parts.map((part, idx) => {
               switch (part.type) {
