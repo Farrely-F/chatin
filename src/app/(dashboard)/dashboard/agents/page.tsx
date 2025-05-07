@@ -92,7 +92,7 @@ export default async function AgentPage() {
         ) : (
           <div className="grid sm:grid-cols-3 gap-4 items-stretch">
             {agents?.map((agent) => (
-              <div key={agent.id} className="relative">
+              <div key={agent.id} className="relative isolate">
                 <Link
                   href={`/dashboard/agents/${agent.id}`}
                   className={agent.model.isAvailable ? "" : "opacity-50"}

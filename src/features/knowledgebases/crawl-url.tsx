@@ -83,7 +83,7 @@ export default function CrawlURL({ agentId }: { agentId: string }) {
             <Form {...crawlForm}>
               <form
                 onSubmit={crawlForm.handleSubmit(handleFormSubmit)}
-                className="space-y-2"
+                className="space-y-4"
               >
                 <FormField
                   control={crawlForm.control}
@@ -116,7 +116,7 @@ export default function CrawlURL({ agentId }: { agentId: string }) {
                   name="maxDepth"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Temperature</FormLabel>
+                      <FormLabel>Max Depth</FormLabel>
                       <FormControl>
                         <SliderControl
                           defaultValue={[0]}
