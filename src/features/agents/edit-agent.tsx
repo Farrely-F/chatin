@@ -262,7 +262,8 @@ export default function EditAgenConfig({
                 />
               </FormControl>
               <FormDescription>
-                The higher the value, the more random the response
+                The higher the value, the more random the response (might result
+                in hallucination)
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -290,8 +291,8 @@ export default function EditAgenConfig({
                 />
               </FormControl>
               <FormDescription>
-                The higher the value, the more similar the chunks need to be to
-                be considered similar
+                Adjusts the minimum relevance score required for retrieved
+                documents. Higher values make the search stricter
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -303,7 +304,7 @@ export default function EditAgenConfig({
           name="topK"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>TopK</FormLabel>
+              <FormLabel>Max Context Retrieved</FormLabel>
               <FormControl>
                 <SliderControl
                   defaultValue={agentDetails.topK ? [agentDetails.topK] : [5]}
@@ -315,7 +316,7 @@ export default function EditAgenConfig({
                 />
               </FormControl>
               <FormDescription>
-                The ammount of chunks to be search
+                The maximum ammount of retrieved context
               </FormDescription>
               <FormMessage />
             </FormItem>

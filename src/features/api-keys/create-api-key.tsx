@@ -33,7 +33,7 @@ import { ApiKeyDisplay } from "./api-key-display";
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   expiresIn: z.string().optional(),
-  scopes: z.array(z.string()),
+  scopes: z.array(z.string()).min(1, "At least one scope is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -146,7 +146,7 @@ export function CreateApiKeyForm({ userId }: { userId: string }) {
                 name="scopes"
                 render={() => (
                   <FormItem>
-                    <div className="mb-2">
+                    <div className="space-y-2">
                       <FormLabel>Scopes</FormLabel>
                       <FormDescription>
                         Select the permissions for this API key
