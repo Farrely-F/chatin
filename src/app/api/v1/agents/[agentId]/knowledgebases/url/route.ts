@@ -25,14 +25,12 @@ export async function POST(
         .returning({ id: knowledgeBases.id });
 
       const visited = new Set<string>();
-      await recursiveCrawl(
-        url,
+      await recursiveCrawl(url, visited, 0, {
         maxDepth,
-        visited,
         knowledgeBaseId,
         agentId,
         trx,
-      );
+      });
 
       await trx
         .update(knowledgeBases)

@@ -45,7 +45,7 @@ export default function EditAgentDialog({
           <SheetTitle>Edit Config</SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="p-4 h-[600px]">
+        <ScrollArea className="p-4 h-[calc(100svh-90px)]">
           <EditAgenConfig
             models={models}
             personas={personas}

@@ -272,7 +272,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                   onChange={(value) => setChunkSize(value[0])}
                 />
                 <p className="text-xs">
-                  Higher values may result in less accurate response
+                  The text will be chunked into smaller parts of this size.
                 </p>
               </div>
 

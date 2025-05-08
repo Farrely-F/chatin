@@ -3,6 +3,8 @@ import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { generateEmbeddings } from "@/lib/embedding-model";
 import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 
+import { cleanText } from "./utils";
+
 export const searchSimilarChunks = async ({
   query,
   agentId,
@@ -16,7 +18,8 @@ export const searchSimilarChunks = async ({
   topK?: number;
   similarityThreshold?: number;
 }) => {
-  const queryEmbedding = await generateEmbeddings(query);
+  const normalizedQuery = cleanText(query);
+  const queryEmbedding = await generateEmbeddings(normalizedQuery);
 
   const similarity = sql<number>`1 - (${cosineDistance(
     chunkEmbeddings.embeddingVector,

@@ -130,7 +130,6 @@ export function generateStreamResponse({
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
-    topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
   });
@@ -162,7 +161,6 @@ export function generateTextResponse({
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
-    topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
   });
 

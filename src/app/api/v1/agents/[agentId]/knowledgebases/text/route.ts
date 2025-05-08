@@ -38,20 +38,24 @@ export async function POST(
         );
       }
 
-      const chunks = splitIntoChunks(content, 500);
+      const chunks = await splitIntoChunks(content as string, {
+        chunkSize: 500,
+        type: "html",
+      });
+
       const embeddings = await generateMultipleEmbeddings(chunks);
 
-      const insertData = embeddings.map((embedding, i) => ({
-        knowledgeBaseId,
+      const chunkRows = chunks.map((chunk, index) => ({
         agentId,
-        contentChunk: chunks[i],
-        embeddingVector: embedding,
-        tokenCount: chunks[i].split(" ").length,
+        knowledgeBaseId,
+        contentChunk: chunk,
+        embeddingVector: embeddings[index],
+        tokenCount: chunk.split(" ").length,
       }));
 
       const [{ id: chunkEmbeddingId }] = await trx
         .insert(chunkEmbeddings)
-        .values(insertData)
+        .values(chunkRows)
         .returning({ id: chunkEmbeddings.id });
 
       if (!chunkEmbeddingId) {

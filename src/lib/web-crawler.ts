@@ -5,69 +5,133 @@ import { load } from "cheerio";
 import { generateMultipleEmbeddings } from "./embedding-model";
 import { splitIntoChunks } from "./text-chunker";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+interface CrawlOptions {
+  maxDepth: number;
+  knowledgeBaseId: string;
+  agentId: string;
+  trx: Parameters<Parameters<typeof db.transaction>[0]>[0];
+  sleepMs?: number;
+}
+
+const blockTags = [
+  "button",
+  "p",
+  "div",
+  "br",
+  "li",
+  "section",
+  "article",
+  "header",
+  "footer",
+  "aside",
+  "nav",
+  "main",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "ul",
+  "ol",
+  "table",
+  "tr",
+  "td",
+  "th",
+];
+
+async function fetchHtml(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    return await res.text();
+  } catch {
+    console.warn(`❌ Failed to fetch: ${url}`);
+    return null;
+  }
+}
+
+export function extractCleanText(html: string): string {
+  const $ = load(html);
+
+  // Remove unwanted nodes
+  $("script, style, noscript").remove();
+  $("*")
+    .contents()
+    .each((_, node) => {
+      if (node.type === "comment") $(node).remove();
+    });
+  $(
+    "header, footer, nav, .cookie-banner, .subscribe-popup, #drawer-menu",
+  ).remove();
+
+  // Add spacing after block elements
+  blockTags.forEach((tag) => {
+    $(tag).after("\n");
+  });
+
+  // Collapse excessive whitespace
+  let text = $("body").text();
+  text = text.replace(/\s+\n/g, "\n"); // remove trailing spaces before newlines
+  text = text.replace(/\n\s+/g, "\n"); // remove leading spaces after newlines
+  text = text.replace(/\n{2,}/g, "\n\n"); // collapse multiple newlines
+  text = text.trim(); // trim start/end whitespace
+
+  console.log(text);
+
+  return text;
+}
 
 export async function recursiveCrawl(
   url: string,
-  maxDepth: number,
   visited: Set<string>,
-  knowledgeBaseId: string,
-  agentId: string,
-  trx: Parameters<Parameters<(typeof db)["transaction"]>[0]>[0],
-  depth = 0,
-) {
+  depth: number,
+  opts: CrawlOptions,
+): Promise<void> {
+  const { maxDepth, knowledgeBaseId, agentId, trx, sleepMs = 200 } = opts;
   if (depth > maxDepth || visited.has(url)) return;
   visited.add(url);
 
   console.log(`🕸️ Crawling: ${url} | Depth: ${depth}`);
 
-  let html: string;
-  try {
-    const res = await fetch(url);
-    html = await res.text();
-  } catch {
-    console.warn(`❌ Failed to fetch: ${url}`);
-    return;
-  }
+  const html = await fetchHtml(url);
+  if (!html) return;
 
-  const $ = load(html);
-  const baseDomain = new URL(url).origin;
-  const text = $("body").text().replace(/\s+/g, " ").trim();
-  const chunks = splitIntoChunks(text, 500);
+  const text = extractCleanText(html);
+  if (!text) throw new Error("URL is not processable");
+
+  // chunk + embed + insert
+  const chunks = await splitIntoChunks(text, {
+    chunkSize: 500,
+  });
   const embeddings = await generateMultipleEmbeddings(chunks);
 
-  if (chunks.length === 0 || embeddings.length === 0) {
-    throw new Error("URL is not processable");
-  }
+  if (embeddings.length === 0) throw new Error("Embedding failed");
 
-  const insertData = embeddings.map((embedding, i) => ({
-    knowledgeBaseId,
+  const chunkRows = chunks.map((chunk, index) => ({
     agentId,
-    contentChunk: chunks[i],
-    embeddingVector: embedding,
-    tokenCount: chunks[i].split(" ").length,
+    knowledgeBaseId,
+    contentChunk: chunk,
+    embeddingVector: embeddings[index],
+    tokenCount: chunk.split(" ").length,
   }));
 
-  await trx.insert(chunkEmbeddings).values(insertData);
+  await trx.insert(chunkEmbeddings).values(chunkRows);
 
-  const links = $("a[href]")
-    .map((_, el) => $(el).attr("href"))
-    .get()
-    .filter((href) => href && !href.startsWith("#"))
-    .map((href) => new URL(href!, baseDomain).href);
+  // extract, normalize, dedupe links
+  const $ = load(html);
+  const base = new URL(url).origin;
+  const links = new Set(
+    $("a[href]")
+      .map((_, el) => $(el).attr("href"))
+      .get()
+      .filter((href): href is string => !!href && !href.startsWith("#"))
+      .map((href) => new URL(href, base).href),
+  );
 
-  for (const link of [...new Set(links)]) {
-    if (link.startsWith(baseDomain)) {
-      await sleep(200);
-      await recursiveCrawl(
-        link,
-        maxDepth,
-        visited,
-        knowledgeBaseId,
-        agentId,
-        trx,
-        depth + 1,
-      );
+  for (const link of links) {
+    if (link.startsWith(base)) {
+      await new Promise((r) => setTimeout(r, sleepMs));
+      await recursiveCrawl(link, visited, depth + 1, opts);
     }
   }
 }
