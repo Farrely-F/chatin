@@ -5,6 +5,7 @@ import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
 import { supabase } from "@/lib/supabase/client";
 import { splitIntoChunks } from "@/lib/text-chunker";
+import { cleanText } from "@/lib/utils";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -16,7 +17,7 @@ export const POST = async (
   const formData = await req.formData();
   const file = formData.get("file") as File;
   const userId = formData.get("userId") as string;
-  const chunkSize = parseInt(formData.get("chunkSize") as string, 10);
+  const chunkSize = parseInt(formData.get("chunkSize") as string);
 
   const { agentId } = await params;
 
@@ -49,19 +50,6 @@ export const POST = async (
 
   try {
     const res = await db.transaction(async (trx) => {
-      const [{ id: knowledgeBaseId }] = await trx
-        .insert(knowledgeBases)
-        .values({
-          id: uuid,
-          agentId,
-          sourceType: fileExt as "pdf" | "doc" | "txt" | "url" | "manual",
-          sourceUrl: "",
-          fileName: file.name,
-          filePath: `${agentId}/${fileName}`,
-          embeddingStatus: "pending",
-        })
-        .returning({ id: knowledgeBases.id });
-
       const text = await extractTextFromPdf(buffer);
 
       if (!text) {
@@ -74,7 +62,23 @@ export const POST = async (
         );
       }
 
-      const chunks = splitIntoChunks(text, chunkSize || 500);
+      const [{ id: knowledgeBaseId }] = await trx
+        .insert(knowledgeBases)
+        .values({
+          id: uuid,
+          agentId,
+          sourceType: fileExt as "pdf" | "doc" | "txt" | "url" | "manual",
+          sourceUrl: "",
+          fileName: file.name,
+          filePath: `${agentId}/${fileName}`,
+          embeddingStatus: "pending",
+          contentText: cleanText(text),
+        })
+        .returning({ id: knowledgeBases.id });
+
+      const chunks = await splitIntoChunks(text, {
+        chunkSize,
+      });
       const embeddings = await generateMultipleEmbeddings(chunks);
 
       if (!embeddings.length || embeddings.length === 0) {

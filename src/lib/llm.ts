@@ -1,5 +1,4 @@
 import { AgentWithKnowledgeBase } from "@/service/agents";
-import { getAllKnowledgeChunks } from "@/service/knowledgebases";
 import { ModelDetails } from "@/service/model";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -38,7 +37,9 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
 
-export function getLLMProvider(model: ModelDetails | null) {
+export function getLLMProvider(
+  model: Pick<ModelDetails, "name" | "provider"> | null,
+) {
   if (!model) {
     throw new Error("Model not found");
   }
@@ -67,13 +68,18 @@ function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
   const { name, systemPrompt, personas, knowledgeBases } = agentConfig;
 
   return `
-You are ${name}, an AI assistant trained to respond based strictly on tool-generated information from a user's selected knowledge base.
+**Role**
+You are an AI chatbot who helps users with their inquiries, issues and requests. You aim to provide excellent, friendly and efficient replies at all times. Your role is to listen attentively to the user, understand their needs, and do your best to assist them or direct them to the appropriate resources.
 
+${
+  knowledgeBases.length > 0 &&
+  `
 🔍 **Knowledge Base Handling**
 - Always check the relevant knowledge base *before* answering any question.
-- If **more than one knowledge base** is available, ask the user to choose by **name** (never expose the ID). Then use the selected knowledge base **ID** internally.
-- If **only one knowledge base** is available, you may use it directly without asking.
-- If **no knowledge base** is attached, ask the user to upload one on the training data page.
+- Do not share any information about the knowledge base with the user.
+- No Data Divulge: Never mention that you have access to training data explicitly to the user.
+`
+}
 
 🤖 **Agent Info**
 - Agent Name: ${name}
@@ -130,7 +136,6 @@ export function generateStreamResponse({
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
-    topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
   });
@@ -162,7 +167,6 @@ export function generateTextResponse({
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
-    topK: agentConfig.topK || 5,
     topP: agentConfig.topP || 1,
   });
 
@@ -185,38 +189,16 @@ function llmToolsConfig({
       description:
         "Retrieve context from knowledge base to answer question that you might not know",
       parameters: z.object({
-        knowledgeBaseId: z
-          .string()
-          .describe(
-            "The knowledge base id of the user selected knowledge base from your system prompt",
-          ),
         userQuestion: z.string().describe("The user's question"),
       }),
-      execute: async ({ knowledgeBaseId, userQuestion }) => {
+      execute: async ({ userQuestion }) => {
         console.log("Calling Retrieve Context");
         const context = await searchSimilarChunks({
           query: userQuestion,
           agentId,
-          knowledgeBaseId,
           topK: agentConfig.topK || 5,
           similarityThreshold: agentConfig.similarityThreshold || 0.5,
         });
-        return context;
-      },
-    }),
-    retrieve_whole_knowledge_base: tool({
-      description:
-        "Retrieve the whole knowledge base chunks, use this to answer questions that need whole knowledge base context, such as summarization",
-      parameters: z.object({
-        knowledgeBaseId: z
-          .string()
-          .describe(
-            "The knowledge base id of the user selected knowledge base from your system prompt",
-          ),
-      }),
-      execute: async ({ knowledgeBaseId }) => {
-        console.log("Calling Whole Context");
-        const context = await getAllKnowledgeChunks(agentId, knowledgeBaseId);
         return context;
       },
     }),

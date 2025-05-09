@@ -9,6 +9,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -90,7 +91,7 @@ export default function CrawlURL({ agentId }: { agentId: string }) {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL Name</FormLabel>
+                      <FormLabel>Website/Source Name</FormLabel>
                       <FormControl>
                         <Input placeholder="Name" {...field} />
                       </FormControl>
@@ -127,6 +128,7 @@ export default function CrawlURL({ agentId }: { agentId: string }) {
                           step={1}
                         />
                       </FormControl>
+                      <FormDescription>Maximum depth to crawl</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

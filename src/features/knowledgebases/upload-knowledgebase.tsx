@@ -23,7 +23,7 @@ type Props = {
 };
 
 // Maximum file size, CONSIDER USING HIGHER PROB 10mb
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Zod schema for file validation
 const fileSchema = z
@@ -268,10 +268,11 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                   maxValue={1000}
                   step={10}
                   defaultValue={[chunkSize]}
-                  onChange={(chunkSize) => setChunkSize(chunkSize[0])}
+                  value={[chunkSize]}
+                  onChange={(value) => setChunkSize(value[0])}
                 />
                 <p className="text-xs">
-                  Higher values may result in less accurate response
+                  The text will be chunked into smaller parts of this size.
                 </p>
               </div>
 
