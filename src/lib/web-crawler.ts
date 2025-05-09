@@ -76,8 +76,6 @@ export function extractCleanText(html: string): string {
   text = text.replace(/\n{2,}/g, "\n\n"); // collapse multiple newlines
   text = text.trim(); // trim start/end whitespace
 
-  console.log(text);
-
   return text;
 }
 

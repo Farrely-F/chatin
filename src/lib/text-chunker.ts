@@ -13,7 +13,7 @@ type Options = {
 export async function splitIntoChunks(content: string, options: Options) {
   const {
     chunkSize = 500,
-    chunkOverlap = Math.floor(chunkSize * 0.1),
+    chunkOverlap = Math.floor(chunkSize * 0.2),
     type = "text",
     separators = undefined,
   } = options;
