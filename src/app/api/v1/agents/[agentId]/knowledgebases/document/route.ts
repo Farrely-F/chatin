@@ -5,69 +5,78 @@ import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
 import { supabase } from "@/lib/supabase/client";
 import { splitIntoChunks } from "@/lib/text-chunker";
+import { parsePdfWithAgent } from "@/lib/utility-agent/pdf-parser-agent";
 import { cleanText } from "@/lib/utils";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+const formSchema = z.object({
+  file: z.instanceof(File),
+  chunkSize: z.preprocess((val) => Number(val), z.number().int().positive()),
+});
 
 export const POST = async (
   req: NextRequest,
   { params }: { params: Promise<{ agentId: string }> },
 ) => {
-  const formData = await req.formData();
-  const file = formData.get("file") as File;
-  const userId = formData.get("userId") as string;
-  const chunkSize = parseInt(formData.get("chunkSize") as string);
-
   const { agentId } = await params;
 
-  if (!file || !agentId || !userId) {
+  let file: File;
+  let chunkSize: number;
+
+  try {
+    const raw = Object.fromEntries(await req.formData());
+    ({ file, chunkSize } = formSchema.parse(raw));
+  } catch {
     return NextResponse.json(
-      {
-        status: false,
-        error: "Missing required fields",
-      },
+      { status: false, error: "Invalid form data" },
       { status: 400 },
     );
   }
 
-  // Check for exisiting agentId first
+  // Verify agent exists
   const agent = await db.query.agents.findFirst({
-    where: (agents, { eq }) => eq(agents.id, agentId),
+    where: (a, { eq }) => eq(a.id, agentId),
+    columns: { id: true },
   });
-
   if (!agent) {
-    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    return NextResponse.json(
+      { status: false, error: "Agent not found" },
+      { status: 404 },
+    );
   }
 
   const uuid = randomUUID();
-
-  const fileExt = file.name.split(".").pop();
+  const fileExt = file.name.split(".").pop() as "pdf";
   const fileName = `${uuid}.${fileExt}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const buffer = Buffer.from(await file.arrayBuffer());
 
   try {
-    const res = await db.transaction(async (trx) => {
-      const text = await extractTextFromPdf(buffer);
+    await db.transaction(async (trx) => {
+      // Extract and chunk text
+      let text = await extractTextFromPdf(buffer);
 
-      if (!text) {
-        return NextResponse.json(
-          {
-            status: false,
-            error: "invalid PDF, unable to extract text",
-          },
-          { status: 500 },
-        );
+      if (!text || text.trim().length === 0) {
+        text = await parsePdfWithAgent(buffer);
+        if (!text) throw new Error("Unable to extract any text from PDF");
       }
 
+      const chunks = await splitIntoChunks(text, { chunkSize });
+      const embeddings = await generateMultipleEmbeddings(chunks);
+
+      if (embeddings.length === 0) {
+        throw new Error("Embedding generation failed");
+      }
+
+      // Insert knowledge base record
       const [{ id: knowledgeBaseId }] = await trx
         .insert(knowledgeBases)
         .values({
           id: uuid,
           agentId,
-          sourceType: fileExt as "pdf" | "doc" | "txt" | "url" | "manual",
+          sourceType: fileExt,
           sourceUrl: "",
           fileName: file.name,
           filePath: `${agentId}/${fileName}`,
@@ -76,58 +85,48 @@ export const POST = async (
         })
         .returning({ id: knowledgeBases.id });
 
-      const chunks = await splitIntoChunks(text, {
-        chunkSize,
-      });
-      const embeddings = await generateMultipleEmbeddings(chunks);
-
-      if (!embeddings.length || embeddings.length === 0) {
-        throw new Error("Failed to generate embeddings");
-      }
-
-      const chunkRows = chunks.map((chunk, index) => ({
+      // Insert chunk embeddings in batch
+      const rows = chunks.map((chunk, i) => ({
         agentId,
         knowledgeBaseId,
         contentChunk: chunk,
-        embeddingVector: embeddings[index],
+        embeddingVector: embeddings[i],
         tokenCount: chunk.split(" ").length,
       }));
+      await trx.insert(chunkEmbeddings).values(rows);
 
-      await trx.insert(chunkEmbeddings).values(chunkRows);
-
+      // Upload file to Supabase
       const { error: uploadError } = await supabase.storage
         .from("knowledge-base")
         .upload(`${agentId}/${fileName}`, buffer, {
           contentType: file.type || "application/octet-stream",
         });
+      if (uploadError) throw uploadError;
 
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const publicUrl = supabase.storage
+      const { data: storedPDF } = supabase.storage
         .from("knowledge-base")
-        .getPublicUrl(`${agentId}/${fileName}`).data.publicUrl;
-
+        .getPublicUrl(`${agentId}/${fileName}`);
       await trx
         .update(knowledgeBases)
-        .set({ sourceUrl: publicUrl, embeddingStatus: "success" })
+        .set({ sourceUrl: storedPDF.publicUrl, embeddingStatus: "success" })
         .where(eq(knowledgeBases.id, knowledgeBaseId));
-
-      return NextResponse.json(
-        { status: true, message: "Knowledge base created successfully" },
-        { status: 200 },
-      );
     });
 
-    return res;
+    return NextResponse.json(
+      {
+        status: true,
+        message: "Knowledge base created successfully",
+      },
+      {
+        status: 201,
+      },
+    );
   } catch (error) {
-    console.error(error);
+    console.error("[KB_UPLOAD_ERROR]", error);
     return NextResponse.json(
       {
         status: false,
-        error: "Failed to create knowledge base",
-        detail: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : "Unexpected error",
       },
       { status: 500 },
     );
