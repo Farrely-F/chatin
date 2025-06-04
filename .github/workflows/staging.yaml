@@ -8,26 +8,42 @@ on:
 env:
   DOCKER_COMPOSE_SERVICE_NAME: chatin-web
   IMAGE_NAME: chatin/web
+  ENVIRONMENT: Staging
+  APP_NAME: Chatin
 
 jobs:
   notify-start:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-    - name: Send Slack Notification (Start)
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get Commit Details
       run: |
-        curl -X POST -H 'Content-type: application/json' \
+        echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+        echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')" >> $GITHUB_ENV
+      
+    - name: Notify Discord - Workflow Started
+      run: |
+        curl -X POST -H 'Content-Type: application/json' \
         --data '{
-          "blocks": [
+          "embeds": [
             {
-              "type": "section",
-              "text": {
-                "type": "mrkdwn",
-                "text": ":large_yellow_circle: *CI Pipeline Started* :large_yellow_circle:\n\n*A new CI job has just started for the staging env.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main` *Env:* Staging"
-              }
+              "title": "🚀 Pipeline Started for ${{ env.APP_NAME }} ${{ env.ENVIRONMENT }} Env 🚀",
+              "color": 4431840,
+              "fields": [
+                {"name": "Workflow", "value": "[${{ github.workflow }} #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true},
+                {"name": "Repository", "value": "[${{ github.repository }}](https://github.com/${{ github.repository }})", "inline": true},
+                {"name": "Branch", "value": "[${{ github.ref_name }}](https://github.com/${{ github.repository }}/tree/${{ github.ref_name }})", "inline": true},
+                {"name": "Triggered By", "value": "[${{ github.actor }}](https://github.com/${{ github.actor }})", "inline": true},
+                {"name": "Commit", "value": "[${{ env.SHORT_SHA }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})", "inline": true},
+                {"name": "Commit Message", "value": "${{ env.COMMIT_MESSAGE }}", "inline": true}
+              ],
+              "footer": {"text": "by SLTR DevOps & Infra Team"}
             }
           ]
         }' \
-        https://hooks.slack.com/services/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
+        "${{ secrets.DISCORD_WEBHOOK_URL }}"
 
   build-chatin:
     needs: notify-start
@@ -89,43 +105,71 @@ jobs:
 
   notify-success:
     needs: [build-chatin, deploy]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: success()
     steps:
-    - name: Send Slack Notification (Completion)
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get Commit Details
       run: |
-        curl -X POST -H 'Content-type: application/json' \
+        echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+        echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')" >> $GITHUB_ENV
+      
+    - name: Notify Discord - Workflow Succeed
+      run: |
+        curl -X POST -H 'Content-Type: application/json' \
         --data '{
-          "blocks": [
+          "embeds": [
             {
-              "type": "section",
-              "text": {
-                "type": "mrkdwn",
-                "text": ":green_apple: *CI Pipeline Success* :green_apple:\n\n*The CI job for staging env has completed successfully.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main`"
-              }
+              "title": "✅ Pipeline Succeeded for ${{ env.APP_NAME }} ${{ env.ENVIRONMENT }} Env ✅",
+              "color": 3581519,
+              "fields": [
+                {"name": "Workflow", "value": "[${{ github.workflow }} #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true},
+                {"name": "Repository", "value": "[${{ github.repository }}](https://github.com/${{ github.repository }})", "inline": true},
+                {"name": "Branch", "value": "[${{ github.ref_name }}](https://github.com/${{ github.repository }}/tree/${{ github.ref_name }})", "inline": true},
+                {"name": "Triggered By", "value": "[${{ github.actor }}](https://github.com/${{ github.actor }})", "inline": true},
+                {"name": "Commit", "value": "[${{ env.SHORT_SHA }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})", "inline": true},
+                {"name": "Commit Message", "value": "${{ env.COMMIT_MESSAGE }}", "inline": true}
+              ],
+              "footer": {"text": "by SLTR DevOps & Infra Team"}
             }
           ]
         }' \
-        https://hooks.slack.com/services/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
+        "${{ secrets.DISCORD_WEBHOOK_URL }}"
           
 
-  notify-failure: 
+  notify-fail:
     needs: [build-chatin, deploy]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: failure()
     steps:
-    - name: Send Slack Notification (Failure)
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get Commit Details
       run: |
-        curl -X POST -H 'Content-type: application/json' \
+        echo "SHORT_SHA=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+        echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')" >> $GITHUB_ENV
+      
+    - name: Notify Discord - Workflow Failed
+      run: |
+        curl -X POST -H 'Content-Type: application/json' \
         --data '{
-          "blocks": [
+          "embeds": [
             {
-              "type": "section",
-              "text": {
-                "type": "mrkdwn",
-                "text": ":red_circle: *CI Pipeline Failed* :red_circle:\n\n*The CI job for staging env has failed.*\n\n*Repository:* <https://github.com/${{ github.repository }}|${{ github.repository }}>\n*Branch:* `main`"
-              }
+              "title": "❌ Pipeline Failed for ${{ env.APP_NAME }} ${{ env.ENVIRONMENT }} Env ❌",
+              "color": 16711680,
+              "fields": [
+                {"name": "Workflow", "value": "[${{ github.workflow }} #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": true},
+                {"name": "Repository", "value": "[${{ github.repository }}](https://github.com/${{ github.repository }})", "inline": true},
+                {"name": "Branch", "value": "[${{ github.ref_name }}](https://github.com/${{ github.repository }}/tree/${{ github.ref_name }})", "inline": true},
+                {"name": "Triggered By", "value": "[${{ github.actor }}](https://github.com/${{ github.actor }})", "inline": true},
+                {"name": "Commit", "value": "[${{ env.SHORT_SHA }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})", "inline": true},
+                {"name": "Commit Message", "value": "${{ env.COMMIT_MESSAGE }}", "inline": true}
+              ],
+              "footer": {"text": "by SLTR DevOps & Infra Team"}
             }
           ]
         }' \
-        https://hooks.slack.com/services/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
+        "${{ secrets.DISCORD_WEBHOOK_URL }}"
