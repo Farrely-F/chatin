@@ -90,6 +90,7 @@ export default function AgentDetailView({
           <AgentKnowledgebases
             agentKnowledgeBases={agentKnowledgeBases}
             agentDetails={agentDetails}
+            models={models}
             userId={userId}
           />
         )}

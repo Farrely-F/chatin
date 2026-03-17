@@ -4,14 +4,18 @@ import { z } from "zod/v4";
 import { DEFAULT_EXTRACTION_PROMPT, getLLMProvider } from "../llm";
 import { cleanText } from "../utils";
 
-export async function parsePdfWithAgent(pdfBuffer: Buffer) {
-  console.log("🤖 Parsing PDF with Agent");
-  const pdfData = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
+type AgenticParseModel = {
+  name: string;
+  provider: string;
+};
 
-  const model = getLLMProvider({
-    name: "gemini-2.0-flash-001",
-    provider: "google",
-  });
+export async function parsePdfWithAgent(
+  pdfBuffer: Buffer,
+  parseModel: AgenticParseModel,
+) {
+  console.log("🤖 Parsing PDF with Agent");
+
+  const model = getLLMProvider(parseModel);
 
   const { object } = await generateObject({
     model,
@@ -26,11 +30,11 @@ export async function parsePdfWithAgent(pdfBuffer: Buffer) {
         content: [
           {
             type: "text",
-            text: "Analyze the following PDF and generate a summary.",
+            text: "Extract ALL content from every page of this PDF into structured markdown. Do not skip any tables, pricing grids, or data.",
           },
           {
             type: "file",
-            data: pdfData,
+            data: pdfBuffer,
             mediaType: "application/pdf",
           },
         ],

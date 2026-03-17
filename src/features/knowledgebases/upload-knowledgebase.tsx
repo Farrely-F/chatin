@@ -9,7 +9,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import SliderControl from "@/components/ui/slider-control";
+import { ModelDetails } from "@/service/model";
 import { Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type React from "react";
@@ -20,6 +28,7 @@ import { z } from "zod/v4";
 type Props = {
   userId: string;
   agentId: string;
+  models: ModelDetails[];
 };
 
 // Maximum file size, CONSIDER USING HIGHER PROB 10mb
@@ -35,14 +44,39 @@ const fileSchema = z
     message: "File size must be less than 10MB",
   });
 
-export default function UploadKnowledgeForm({ userId, agentId }: Props) {
+export default function UploadKnowledgeForm({
+  userId,
+  agentId,
+  models,
+}: Props) {
   const router = useRouter();
   const [chunkSize, setChunkSize] = useState(100);
   const [file, setFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [parseMethod, setParseMethod] = useState<"pdf" | "agentic">("pdf");
+  const [parseModelId, setParseModelId] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
   const [, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+
+  const availableAgenticModels = models.filter(
+    (model) => model.isAvailable && model.supportsObjectGeneration,
+  );
+
+  useEffect(() => {
+    if (availableAgenticModels.length === 0) {
+      setParseModelId("");
+      return;
+    }
+
+    const modelExists = availableAgenticModels.some(
+      (model) => model.id === parseModelId,
+    );
+
+    if (!modelExists) {
+      setParseModelId(availableAgenticModels[0].id);
+    }
+  }, [availableAgenticModels, parseModelId]);
 
   useEffect(() => {
     return () => {
@@ -119,10 +153,20 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
       return;
     }
 
+    if (parseMethod === "agentic" && !parseModelId) {
+      toast.error("Please select an agentic parsing model");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("userId", userId);
     formData.append("chunkSize", chunkSize.toString());
+    formData.append("parseMethod", parseMethod);
+
+    if (parseMethod === "agentic") {
+      formData.append("parseModelId", parseModelId);
+    }
 
     setIsUploading(true);
 
@@ -262,6 +306,55 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
               </div>
 
               <div className="mt-2 space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">PDF Parse Method</p>
+                  <Select
+                    value={parseMethod}
+                    onValueChange={(value: "pdf" | "agentic") =>
+                      setParseMethod(value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parse method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pdf">PDF Parse</SelectItem>
+                      <SelectItem value="agentic">Agentic Parse</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    PDF Parse uses standard extraction. Agentic Parse uses an
+                    LLM for complex layouts.
+                  </p>
+                </div>
+
+                {parseMethod === "agentic" && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Agentic Parse Model</p>
+                    <Select
+                      value={parseModelId}
+                      onValueChange={setParseModelId}
+                      disabled={availableAgenticModels.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAgenticModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.provider} / {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {availableAgenticModels.length === 0 && (
+                      <p className="text-xs text-destructive">
+                        No available models support object generation.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <SliderControl
                   label="Chunk Size"
                   minValue={100}

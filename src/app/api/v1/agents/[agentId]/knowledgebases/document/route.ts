@@ -1,20 +1,23 @@
 import { db } from "@/db";
 import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { knowledgeBases } from "@/db/schema/knowledgebases";
+import { aiModels } from "@/db/schema/models";
 import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
 import { supabase } from "@/lib/supabase/client";
 import { splitIntoChunks } from "@/lib/text-chunker";
 import { parsePdfWithAgent } from "@/lib/utility-agent/pdf-parser-agent";
 import { cleanText } from "@/lib/utils";
-import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from 'zod/v4';
+import { randomUUID } from "node:crypto";
+import { z } from "zod/v4";
 
 const formSchema = z.object({
   file: z.instanceof(File),
-  chunkSize: z.preprocess((val) => Number(val), z.number().int().positive()),
+  chunkSize: z.preprocess(Number, z.number().int().positive()),
+  parseMethod: z.enum(["pdf", "agentic"]).default("pdf"),
+  parseModelId: z.uuid().optional(),
 });
 
 export const POST = async (
@@ -25,13 +28,22 @@ export const POST = async (
 
   let file: File;
   let chunkSize: number;
+  let parseMethod: "pdf" | "agentic";
+  let parseModelId: string | undefined;
 
   try {
     const raw = Object.fromEntries(await req.formData());
-    ({ file, chunkSize } = formSchema.parse(raw));
+    ({ file, chunkSize, parseMethod, parseModelId } = formSchema.parse(raw));
   } catch {
     return NextResponse.json(
       { status: false, error: "Invalid form data" },
+      { status: 400 },
+    );
+  }
+
+  if (parseMethod === "agentic" && !parseModelId) {
+    return NextResponse.json(
+      { status: false, error: "Parsing model is required for agentic parse" },
       { status: 400 },
     );
   }
@@ -48,6 +60,55 @@ export const POST = async (
     );
   }
 
+  let parseModel: Pick<
+    typeof aiModels.$inferSelect,
+    "name" | "provider"
+  > | null = null;
+
+  if (parseMethod === "agentic") {
+    const requiredParseModelId = parseModelId;
+
+    if (!requiredParseModelId) {
+      return NextResponse.json(
+        { status: false, error: "Parsing model is required for agentic parse" },
+        { status: 400 },
+      );
+    }
+
+    const selectedModel = await db.query.aiModels.findFirst({
+      where: (model, { eq, and }) =>
+        and(eq(model.id, requiredParseModelId), eq(model.isAvailable, true)),
+      columns: {
+        id: true,
+        name: true,
+        provider: true,
+        supportsObjectGeneration: true,
+      },
+    });
+
+    if (!selectedModel) {
+      return NextResponse.json(
+        { status: false, error: "Selected parsing model is unavailable" },
+        { status: 400 },
+      );
+    }
+
+    if (!selectedModel.supportsObjectGeneration) {
+      return NextResponse.json(
+        {
+          status: false,
+          error: "Selected parsing model does not support object generation",
+        },
+        { status: 400 },
+      );
+    }
+
+    parseModel = {
+      name: selectedModel.name,
+      provider: selectedModel.provider,
+    };
+  }
+
   const uuid = randomUUID();
   const fileExt = file.name.split(".").pop() as "pdf";
   const fileName = `${uuid}.${fileExt}`;
@@ -56,11 +117,26 @@ export const POST = async (
   try {
     await db.transaction(async (trx) => {
       // Extract and chunk text
-      let text = await extractTextFromPdf(buffer);
+      let text = "";
 
-      if (!text || text.trim().length === 0) {
-        text = await parsePdfWithAgent(buffer);
-        if (!text) throw new Error("Unable to extract any text from PDF");
+      if (parseMethod === "pdf") {
+        text = await extractTextFromPdf(buffer);
+
+        if (!text || text.trim().length === 0) {
+          throw new Error(
+            "Unable to extract text with PDF parser. Try Agentic parse method.",
+          );
+        }
+      } else {
+        if (!parseModel) {
+          throw new Error("Parsing model is required for agentic parse");
+        }
+
+        text = await parsePdfWithAgent(buffer, parseModel);
+
+        if (!text || text.trim().length === 0) {
+          throw new Error("Unable to extract any text from PDF");
+        }
       }
 
       const chunks = await splitIntoChunks(text, { chunkSize });

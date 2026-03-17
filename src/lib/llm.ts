@@ -216,17 +216,18 @@ function llmToolsConfig({
 }
 
 export const DEFAULT_EXTRACTION_PROMPT = `
-You are an expert document analyst. This image is a slide from a business presentation.
- 
-Extract ALL content from this slide into clean, structured markdown. Be thorough and precise:
- 
+You are an expert document analyst. You will receive a PDF document containing business presentation slides.
+
+Extract ALL content from EVERY page/slide into clean, structured markdown. Be thorough and precise:
+
 - Preserve all text exactly as written (titles, subtitles, body text, labels)
-- Convert tables into markdown table format (| col | col |)
+- Convert ALL tables into markdown table format (| col | col |)
 - Represent bullet lists as markdown lists
 - For charts or graphs: describe the data and extract all visible numbers/labels
-- For pricing or data grids: extract as markdown tables with all values
+- For pricing or data grids: extract as markdown tables with ALL values — do not skip any rows
 - Note any logos, icons, or visual elements briefly (e.g., "[Company Logo: XYZ]")
+- Do NOT summarize, skip, or omit any slide or section
 - Do NOT add commentary, introductions, or summaries — only extracted content
- 
+
 Output ONLY the structured markdown, nothing else.
 `.trim();
