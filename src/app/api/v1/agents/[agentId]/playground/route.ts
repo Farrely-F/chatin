@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth/auth";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { verifyApiKey } from "@/service/api-key";
+import { UIMessage } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
 const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN!;
@@ -13,7 +14,10 @@ export async function POST(
   const body = await req.json();
   const host = req.headers.get("host");
 
-  const { messages, user_id } = body;
+  const { messages, user_id } = body as {
+    messages: UIMessage[];
+    user_id?: string;
+  };
   const { agentId } = await params;
 
   const session = await auth();
@@ -84,5 +88,15 @@ export async function POST(
     );
   }
 
-  return response.toDataStreamResponse();
+  return response.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: () => crypto.randomUUID(),
+    messageMetadata: ({ part }) => {
+      if (part.type === "finish") {
+        return { totalUsage: part.totalUsage };
+      }
+
+      return undefined;
+    },
+  });
 }

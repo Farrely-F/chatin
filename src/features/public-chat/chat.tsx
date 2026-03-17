@@ -6,8 +6,9 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useChatStore } from "@/lib/chat-store";
 import { AgentDetails } from "@/service/agents";
-import { type Message, useChat } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { StopCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
@@ -15,7 +16,7 @@ import { useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { ChatMessage } from "../../components/ui/chat-message";
 import { Form, FormField } from "../../components/ui/form";
@@ -31,12 +32,16 @@ const formSchema = z.object({
 export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
   const [, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageHistoryRef = useRef<Message[]>([]);
+  const messageHistoryRef = useRef<UIMessage[]>([]);
 
   const params = useParams();
   const { slug, chatId } = params as { slug: string; chatId: string };
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<
+    z.input<typeof formSchema>,
+    unknown,
+    z.output<typeof formSchema>
+  >({
     resolver: zodResolver(formSchema),
     defaultValues: {
       message: "",
@@ -46,31 +51,23 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
   const { saveChatHistory, loadChatHistory, saveChatList, getChatList } =
     useChatStore();
 
-  const { messages, handleSubmit, append, status, stop, setMessages } = useChat(
-    {
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
+    onFinish: ({ messages: nextMessages }) => {
+      messageHistoryRef.current = nextMessages;
+      saveChatHistory(slug, chatId, nextMessages);
+    },
+
+    onError(error) {
+      toast.error(error instanceof Error ? error.message : error);
+    },
+
+    transport: new DefaultChatTransport({
       api: `/api/v1/agents/${agentDetails.id}/public/chat/stream`,
-      maxSteps: 5,
       body: {
         user_id: agentDetails?.userId,
       },
-      onFinish: async (msg) => {
-        const current = messageHistoryRef.current;
-
-        // Check for duplicate ID
-        const isDuplicate = current.some((m) => m.id === msg.id);
-        const uniqueMessage = isDuplicate
-          ? { ...msg, id: crypto.randomUUID() }
-          : msg;
-
-        const updated = [...current, uniqueMessage];
-        messageHistoryRef.current = updated;
-        saveChatHistory(slug, chatId, updated);
-      },
-      onError(error) {
-        toast.error(error instanceof Error ? error.message : error);
-      },
-    },
-  );
+    }),
+  });
 
   useEffect(() => {
     const stored = loadChatHistory(slug, chatId);
@@ -88,16 +85,15 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
   }, [messages]);
 
   const handleMessageSubmit = () => {
-    startTransition(() => {
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: form.getValues("message"),
-      };
+    const message = form.getValues("message").trim();
+    if (!message) {
+      return;
+    }
 
+    startTransition(() => {
       if (messageHistoryRef.current.length === 0) {
         const chatList = getChatList(slug);
-        const firstMessageTitle = userMessage.content.slice(0, 40);
+        const firstMessageTitle = message.slice(0, 40);
         const metadata = {
           chatId,
           slug,
@@ -107,11 +103,9 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
         saveChatList(slug, [metadata, ...chatList]);
       }
 
-      messageHistoryRef.current = [...messageHistoryRef.current, userMessage];
-      saveChatHistory(slug, chatId, messageHistoryRef.current);
-
-      append(userMessage);
-      handleSubmit();
+      sendMessage({ text: message }).catch((error) => {
+        toast.error(error instanceof Error ? error.message : String(error));
+      });
       form.reset({ message: "" });
     });
   };
@@ -130,64 +124,74 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
         <div className="max-w-3xl mx-auto mt-6 space-y-6 space-x-2">
           {messages.map((msg) => {
             return msg.parts.map((part, idx) => {
-              switch (part.type) {
-                case "text":
-                  return (
-                    <ChatMessage
-                      agentName={agentDetails.name}
-                      className="group"
-                      isUser={msg.role === "user"}
-                      key={idx}
-                      messageActions={
-                        <div className="flex items-center gap-2 text-muted-foreground text-xs group-hover:scale-100 scale-0 transition-transform ease-in-out origin-left">
-                          <CopyButton value={part?.text} />
-                          <p>Copy Message</p>
-                        </div>
-                      }
+              if (part.type === "text") {
+                return (
+                  <ChatMessage
+                    agentName={agentDetails.name}
+                    className="group"
+                    isUser={msg.role === "user"}
+                    key={`${msg.id}-${idx}`}
+                    messageActions={
+                      <div className="flex items-center gap-2 text-muted-foreground text-xs group-hover:scale-100 scale-0 transition-transform ease-in-out origin-left">
+                        <CopyButton value={part.text} />
+                        <p>Copy Message</p>
+                      </div>
+                    }
+                  >
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          return match ? (
+                            <CodeBlock
+                              language={match[1]}
+                              value={String(children).replace(/\n$/, "")}
+                            />
+                          ) : (
+                            <pre className="w-full overflow-x-auto">
+                              <code
+                                className="px-1.5 py-0.5 rounded bg-muted text-sm"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+                            </pre>
+                          );
+                        },
+                      }}
                     >
-                      <ReactMarkdown
-                        components={{
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(
-                              className || "",
-                            );
-                            return match ? (
-                              <CodeBlock
-                                language={match[1]}
-                                value={String(children).replace(/\n$/, "")}
-                              />
-                            ) : (
-                              <pre className="w-full overflow-x-auto">
-                                <code
-                                  className="px-1.5 py-0.5 rounded bg-muted text-sm"
-                                  {...props}
-                                >
-                                  {children}
-                                </code>
-                              </pre>
-                            );
-                          },
-                        }}
-                      >
-                        {part.text}
-                      </ReactMarkdown>
-                    </ChatMessage>
-                  );
-                case "tool-invocation":
-                  if (msg.content.length === 0) {
-                    return (
-                      <Badge
-                        variant={"secondary"}
-                        key={part.toolInvocation.toolCallId}
-                        className="italic"
-                      >
-                        🛠️ {part.toolInvocation.toolName.split("_").join(" ")}
-                      </Badge>
-                    );
-                  }
-                default:
-                  return null;
+                      {part.text}
+                    </ReactMarkdown>
+                  </ChatMessage>
+                );
               }
+
+              if (!("toolCallId" in part) || !part.type.startsWith("tool-")) {
+                return null;
+              }
+
+              const hasTextContent = msg.parts.some(
+                (msgPart) =>
+                  msgPart.type === "text" && msgPart.text.trim().length > 0,
+              );
+
+              if (hasTextContent) {
+                return null;
+              }
+
+              const toolName = part.type.slice(5).split("_").join(" ");
+              const toolLabel =
+                part.state === "output-error" ? `${toolName} failed` : toolName;
+
+              return (
+                <Badge
+                  variant={"secondary"}
+                  key={part.toolCallId}
+                  className="italic"
+                >
+                  🛠️ {toolLabel}
+                </Badge>
+              );
             });
           })}
 
@@ -205,7 +209,6 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
           <div ref={messagesEndRef} aria-hidden="true" />
         </div>
       </div>
-
       {/* Input Footer */}
       <div className="sticky bottom-0 pt-4 md:pt-8 z-50">
         <div className="max-w-3xl mx-auto bg-background rounded-[20px] pb-2 md:pb-8">

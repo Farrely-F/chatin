@@ -7,13 +7,14 @@ import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { DefaultChatTransport } from "ai";
 import { ArrowLeft, StopCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { Badge } from "./badge";
 import { ChatMessage } from "./chat-message";
@@ -40,25 +41,35 @@ export default function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [usedToken, setUsedToken] = useState(0);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<
+    z.input<typeof formSchema>,
+    unknown,
+    z.output<typeof formSchema>
+  >({
     resolver: zodResolver(formSchema),
     defaultValues: {
       message: "",
     },
   });
 
-  const { messages, handleSubmit, append, status, stop } = useChat({
-    api: `/api/v1/agents/${agentDetails.id}/playground`,
-    body: {
-      user_id: userId,
+  const { messages, sendMessage, status, stop } = useChat({
+    onFinish({ message }) {
+      const totalTokens =
+        (message.metadata as { totalUsage?: { totalTokens?: number } })
+          ?.totalUsage?.totalTokens ?? 0;
+      setUsedToken(totalTokens);
     },
-    maxSteps: 5,
-    onFinish(_, options) {
-      setUsedToken(options?.usage?.totalTokens ?? 0);
-    },
+
     onError(error) {
       toast.error(error instanceof Error ? error.message : error);
     },
+
+    transport: new DefaultChatTransport({
+      api: `/api/v1/agents/${agentDetails.id}/playground`,
+      body: {
+        user_id: userId,
+      },
+    }),
   });
 
   useEffect(() => {
@@ -66,16 +77,18 @@ export default function Chat({
   }, [messages]);
 
   const handleMessageSubmit = () => {
-    startTransition(async () => {
-      append({
-        role: "user",
-        content: form.getValues("message"),
-      });
+    const message = form.getValues("message").trim();
+    if (!message) {
+      return;
+    }
 
-      handleSubmit();
+    form.reset({
+      message: "",
+    });
 
-      form.reset({
-        message: "",
+    startTransition(() => {
+      sendMessage({ text: message }).catch((error) => {
+        toast.error(error instanceof Error ? error.message : String(error));
       });
     });
   };
@@ -111,62 +124,71 @@ export default function Chat({
           />
         </div>
       </div>
-
       {/* Chat */}
       <div className="relative grow">
         <div className="max-w-3xl mx-auto mt-6 space-y-6 space-x-2">
           {messages.map((msg) => {
             return msg.parts.map((part, idx) => {
-              switch (part.type) {
-                case "text":
-                  return (
-                    <ChatMessage
-                      agentName={agentDetails.name}
-                      className="group"
-                      isUser={msg.role === "user"}
-                      key={idx}
+              if (part.type === "text") {
+                return (
+                  <ChatMessage
+                    agentName={agentDetails.name}
+                    className="group"
+                    isUser={msg.role === "user"}
+                    key={`${msg.id}-${idx}`}
+                  >
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          return match ? (
+                            <CodeBlock
+                              language={match[1]}
+                              value={String(children).replace(/\n$/, "")}
+                            />
+                          ) : (
+                            <code
+                              className="px-1.5 py-0.5 rounded bg-muted text-sm"
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
                     >
-                      <ReactMarkdown
-                        components={{
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(
-                              className || "",
-                            );
-                            return match ? (
-                              <CodeBlock
-                                language={match[1]}
-                                value={String(children).replace(/\n$/, "")}
-                              />
-                            ) : (
-                              <code
-                                className="px-1.5 py-0.5 rounded bg-muted text-sm"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            );
-                          },
-                        }}
-                      >
-                        {part.text}
-                      </ReactMarkdown>
-                    </ChatMessage>
-                  );
-                case "tool-invocation":
-                  if (msg.content.length === 0) {
-                    return (
-                      <Badge
-                        variant={"secondary"}
-                        key={part.toolInvocation.toolCallId}
-                        className="italic"
-                      >
-                        🛠️ {part.toolInvocation.toolName.split("_").join(" ")}
-                      </Badge>
-                    );
-                  }
-                default:
-                  return null;
+                      {part.text}
+                    </ReactMarkdown>
+                  </ChatMessage>
+                );
               }
+
+              if (!("toolCallId" in part) || !part.type.startsWith("tool-")) {
+                return null;
+              }
+
+              const hasTextContent = msg.parts.some(
+                (msgPart) =>
+                  msgPart.type === "text" && msgPart.text.trim().length > 0,
+              );
+
+              if (hasTextContent) {
+                return null;
+              }
+
+              const toolName = part.type.slice(5).split("_").join(" ");
+              const toolLabel =
+                part.state === "output-error" ? `${toolName} failed` : toolName;
+
+              return (
+                <Badge
+                  variant={"secondary"}
+                  key={part.toolCallId}
+                  className="italic"
+                >
+                  🛠️ {toolLabel}
+                </Badge>
+              );
             });
           })}
 
@@ -184,7 +206,6 @@ export default function Chat({
           <div ref={messagesEndRef} aria-hidden="true" />
         </div>
       </div>
-
       {/* Footer */}
       <div className="sticky bottom-0 pt-4 md:pt-8 z-50">
         <div className="max-w-3xl mx-auto bg-background rounded-[20px] pb-4 md:pb-8">
@@ -216,7 +237,7 @@ export default function Chat({
                     className={`rounded-full h-8 ${
                       status === "streaming" ? "animate-pulse" : ""
                     }`}
-                    onClick={() => (status !== "ready" ? stop() : null)}
+                    onClick={() => (status === "ready" ? null : stop())}
                   >
                     {status === "streaming" ? (
                       <>

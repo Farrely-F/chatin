@@ -6,14 +6,16 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  CoreMessage,
-  LanguageModelV1,
+  type LanguageModel,
   Tool,
+  type UIMessage,
+  convertToModelMessages,
   generateText,
+  stepCountIs,
   streamText,
   tool,
 } from "ai";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { searchSimilarChunks } from "./similarity-search";
 
@@ -118,9 +120,9 @@ export function generateStreamResponse({
   messages,
   agentId,
 }: {
-  model: LanguageModelV1;
+  model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
-  messages: CoreMessage[];
+  messages: UIMessage[];
   agentId: string;
 }) {
   if ("error" in agentConfig) {
@@ -128,14 +130,17 @@ export function generateStreamResponse({
   }
 
   const response = streamText({
-    maxSteps: 5,
+    maxRetries: 0,
+    stopWhen: stepCountIs(5),
     model,
     system: generateSysPrompt(agentConfig),
-    messages,
+    messages: convertToModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
+
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
   });
@@ -149,9 +154,9 @@ export function generateTextResponse({
   messages,
   agentId,
 }: {
-  model: LanguageModelV1;
+  model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
-  messages: CoreMessage[];
+  messages: UIMessage[];
   agentId: string;
 }) {
   if ("error" in agentConfig) {
@@ -159,14 +164,17 @@ export function generateTextResponse({
   }
 
   const response = generateText({
-    maxSteps: 5,
+    maxRetries: 0,
+    stopWhen: stepCountIs(5),
     model,
     system: generateSysPrompt(agentConfig),
-    messages,
+    messages: convertToModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
+
     tools: agentConfig.model.supportsToolUse
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+
     topP: agentConfig.topP || 1,
   });
 
@@ -188,7 +196,7 @@ function llmToolsConfig({
     retrieve_context: tool({
       description:
         "Retrieve context from knowledge base to answer question that you might not know",
-      parameters: z.object({
+      inputSchema: z.object({
         userQuestion: z.string().describe("The user's question"),
       }),
       execute: async ({ userQuestion }) => {

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod/v4';
 
 export const createPersonaSchema = z.object({
   name: z.string().trim().min(1, "Name is too short"),

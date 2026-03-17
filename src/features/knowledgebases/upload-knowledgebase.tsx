@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 type Props = {
   userId: string;
@@ -55,7 +55,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   const validateFile = (selectedFile: File) => {
     const result = fileSchema.safeParse(selectedFile);
     if (!result.success) {
-      const errorMessage = result.error.errors[0]?.message || "Invalid file";
+      const errorMessage = result.error.issues[0]?.message || "Invalid file";
       setError(errorMessage);
       toast.error(errorMessage);
       return false;

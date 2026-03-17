@@ -1,4 +1,4 @@
-import type { Message } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -11,14 +11,18 @@ export interface ChatMetadata {
 
 interface ChatState {
   chatList: Record<string, ChatMetadata[]>; // slug => chats
-  chatHistory: Record<string, Message[]>; // `${slug}:${chatId}` => messages
+  chatHistory: Record<string, UIMessage[]>; // `${slug}:${chatId}` => messages
 
   getChatList: (slug: string) => ChatMetadata[];
   saveChatList: (slug: string, list: ChatMetadata[]) => void;
   deleteChatList: (slug: string, chatId: string) => void;
 
-  loadChatHistory: (slug: string, chatId: string) => Message[];
-  saveChatHistory: (slug: string, chatId: string, messages: Message[]) => void;
+  loadChatHistory: (slug: string, chatId: string) => UIMessage[];
+  saveChatHistory: (
+    slug: string,
+    chatId: string,
+    messages: UIMessage[],
+  ) => void;
   deleteChatHistory: (slug: string, chatId: string) => void;
 }
 

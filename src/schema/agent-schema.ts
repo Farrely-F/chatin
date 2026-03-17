@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -17,11 +17,12 @@ export const agentFormSchema = z.object({
   avatarUrl: z.string().url().optional(),
   systemPrompt: z.string().optional(),
   modelId: z.string().min(1, "Model is required"),
-  temperature: z.coerce.number().min(0).max(2),
-  similarityThreshold: z.coerce.number().min(0).max(1).optional(),
-  topK: z.coerce.number().min(1).optional(),
-  topP: z.coerce.number().min(0.1).max(1).optional(),
+  temperature: z.number().min(0).max(2),
+  similarityThreshold: z.number().min(0).max(1).optional(),
+  topK: z.number().min(1).optional(),
+  topP: z.number().min(0.1).max(1).optional(),
   personaId: z.string().optional(),
 });
 
-export type AgentFormValues = z.infer<typeof agentFormSchema>;
+export type AgentFormInput = z.input<typeof agentFormSchema>;
+export type AgentFormValues = z.output<typeof agentFormSchema>;

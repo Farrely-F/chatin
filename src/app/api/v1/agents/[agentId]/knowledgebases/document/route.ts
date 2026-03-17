@@ -10,7 +10,7 @@ import { cleanText } from "@/lib/utils";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { z } from 'zod/v4';
 
 const formSchema = z.object({
   file: z.instanceof(File),

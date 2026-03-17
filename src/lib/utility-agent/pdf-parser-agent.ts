@@ -1,11 +1,13 @@
 import { generateObject } from "ai";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { DEFAULT_EXTRACTION_PROMPT, getLLMProvider } from "../llm";
 import { cleanText } from "../utils";
 
 export async function parsePdfWithAgent(pdfBuffer: Buffer) {
   console.log("🤖 Parsing PDF with Agent");
+  const pdfData = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
+
   const model = getLLMProvider({
     name: "gemini-2.0-flash-001",
     provider: "google",
@@ -20,6 +22,7 @@ export async function parsePdfWithAgent(pdfBuffer: Buffer) {
     messages: [
       {
         role: "user",
+
         content: [
           {
             type: "text",
@@ -27,8 +30,8 @@ export async function parsePdfWithAgent(pdfBuffer: Buffer) {
           },
           {
             type: "file",
-            data: pdfBuffer,
-            mimeType: "application/pdf",
+            data: pdfData,
+            mediaType: "application/pdf",
           },
         ],
       },

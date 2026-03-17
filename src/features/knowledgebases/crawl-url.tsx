@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
+import { z } from 'zod/v4';
 
 const crawlSchema = z.object({
   url: z.string().url(),
