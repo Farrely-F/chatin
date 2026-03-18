@@ -1,29 +1,32 @@
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
+import {
+  invalidPublicChatBodyMessage,
+  parsePublicChatBody,
+} from "@/schema/public-chat-schema";
 import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { ApiHandlerArgs } from "@/types/api";
-import { UIMessage } from "ai";
 import { NextResponse } from "next/server";
 
 async function postHandler(...args: ApiHandlerArgs) {
   const [req, { params }] = args;
 
   try {
-    const body = await req.json();
+    const body = parsePublicChatBody(await req.json());
 
-    const { messages, user_id } = body as {
-      messages: UIMessage[];
-      user_id?: string;
-    };
-    const { agentId } = await params;
-
-    if (!messages) {
+    if (!body.success) {
       return NextResponse.json(
-        { status: false, error: "Invalid message" },
+        {
+          status: false,
+          error: invalidPublicChatBodyMessage,
+        },
         { status: 400 },
       );
     }
+
+    const { messages, user_id } = body.data;
+    const { agentId } = await params;
 
     const requestUserId = req.authorized?.userId || user_id || "";
 

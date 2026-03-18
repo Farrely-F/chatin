@@ -1,5 +1,9 @@
 import { generateTextResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
+import {
+  invalidPublicChatBodyMessage,
+  parsePublicChatBody,
+} from "@/schema/public-chat-schema";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,19 +12,22 @@ async function postHandler(
   { params }: { params: Promise<{ agentId: string }> },
 ) {
   try {
-    const body = await req.json();
+    const body = parsePublicChatBody(await req.json());
 
-    const { messages, user_id } = body;
-    const { agentId } = await params;
-
-    if (!messages) {
+    if (!body.success) {
       return NextResponse.json(
-        { status: false, error: "Invalid message" },
+        {
+          status: false,
+          error: invalidPublicChatBodyMessage,
+        },
         { status: 400 },
       );
     }
 
-    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id);
+    const { messages, user_id } = body.data;
+    const { agentId } = await params;
+
+    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id ?? "");
 
     if ("error" in agentConfig) {
       return NextResponse.json({ error: agentConfig.error }, { status: 400 });

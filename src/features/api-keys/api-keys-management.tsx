@@ -16,35 +16,33 @@ export default async function ApiKeysManagement() {
   }
 
   return (
-    <>
-      <Tabs defaultValue="account">
-        <TabsList>
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-        </TabsList>
+    <Tabs defaultValue="account" className="gap-0">
+      <TabsList className="w-full max-w-xs h-14 p-2 rounded-none rounded-t-xl -mb-2 pb-4 shadow-sm border">
+        <TabsTrigger value="account">Account</TabsTrigger>
+        <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+      </TabsList>
 
-        <TabsContent value="account" className="space-y-4">
-          <div className="w-full">
-            <EndpointInfo user={user} />
+      <TabsContent value="account" className="space-y-4">
+        <div className="w-full">
+          <EndpointInfo user={user} />
+        </div>
+      </TabsContent>
+      <TabsContent value="api-keys" className="space-y-4">
+        <div className="grid gap-8 grid-cols-1 md:grid-cols-2 bg-background rounded-xl border p-4">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Create New API Key</h2>
+            <CreateApiKeyForm userId={user?.id} />
           </div>
-        </TabsContent>
-        <TabsContent value="api-keys" className="space-y-4">
-          <div className="grid gap-8 grid-cols-1 md:grid-cols-2">
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Create New API Key</h2>
-              <CreateApiKeyForm userId={user?.id} />
-            </div>
 
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Your API Keys</h2>
-              <Suspense fallback={<ApiKeysListSkeleton />}>
-                <ApiKeysList userId={user?.id} />
-              </Suspense>
-            </div>
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Your API Keys</h2>
+            <Suspense fallback={<ApiKeysListSkeleton />}>
+              <ApiKeysList userId={user?.id} />
+            </Suspense>
           </div>
-        </TabsContent>
-      </Tabs>
-    </>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 }
 
