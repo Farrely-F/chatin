@@ -1,10 +1,12 @@
 import { auth } from "@/lib/auth/auth";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
+import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { verifyApiKey } from "@/service/api-key";
+import { UIMessage } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN!;
+const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN ?? "";
 
 export async function POST(
   req: NextRequest,
@@ -13,7 +15,10 @@ export async function POST(
   const body = await req.json();
   const host = req.headers.get("host");
 
-  const { messages, user_id } = body;
+  const { messages, user_id } = body as {
+    messages: UIMessage[];
+    user_id?: string;
+  };
   const { agentId } = await params;
 
   const session = await auth();
@@ -75,6 +80,8 @@ export async function POST(
     agentConfig,
     messages,
     agentId,
+    requestUserId: user_id,
+    feedbackGuidance: await getRecentAgentFeedbackHints(agentId, user_id, 5),
   });
 
   if ("error" in response) {
@@ -84,5 +91,26 @@ export async function POST(
     );
   }
 
-  return response.toDataStreamResponse();
+  return response.toUIMessageStreamResponse({
+    originalMessages: messages,
+    generateMessageId: () => crypto.randomUUID(),
+    messageMetadata: ({ part }) => {
+      if (part.type === "finish") {
+        const inputTokens = part.totalUsage.inputTokens ?? 0;
+        const cachedInputTokens = part.totalUsage.cachedInputTokens ?? 0;
+
+        return {
+          totalUsage: part.totalUsage,
+          cache: {
+            inputTokens,
+            cachedInputTokens,
+            hitRate:
+              inputTokens > 0 ? cachedInputTokens / inputTokens : undefined,
+          },
+        };
+      }
+
+      return undefined;
+    },
+  });
 }

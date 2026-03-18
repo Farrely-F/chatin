@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "vercel-ai-sdk-mcp": {
+      "url": "https://ai-sdk-5-migration-mcp-server.vercel.app/api/mcp",
+      "type": "http"
+    }
+  },
+  "inputs": []
+}

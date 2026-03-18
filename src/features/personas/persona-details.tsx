@@ -141,7 +141,7 @@ export default function PersonaDetailsView({
               ))}
 
               <Button className="mt-8" type="submit" disabled={isPending}>
-                {isPending ? "Creating..." : "Create"}
+                {isPending ? "Editing..." : "Edit"}
               </Button>
             </form>
           </Form>

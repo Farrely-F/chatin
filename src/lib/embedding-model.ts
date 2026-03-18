@@ -1,12 +1,18 @@
 import { google } from "@ai-sdk/google";
 import { embed, embedMany } from "ai";
 
-const embeddingModel = google.textEmbeddingModel("text-embedding-004");
+const embeddingModel = google.textEmbeddingModel("gemini-embedding-001");
+const EMBEDDING_DIMENSIONS = 768;
 
 export const generateEmbeddings = async (text: string): Promise<number[]> => {
   const { embedding } = await embed({
     model: embeddingModel,
     value: text,
+    providerOptions: {
+      google: {
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      },
+    },
   });
 
   return embedding;
@@ -32,6 +38,11 @@ export const generateMultipleEmbeddings = async (
     const { embeddings } = await embedMany({
       model: embeddingModel,
       values: batch,
+      providerOptions: {
+        google: {
+          outputDimensionality: EMBEDDING_DIMENSIONS,
+        },
+      },
     });
 
     allEmbeddings.push(...embeddings);

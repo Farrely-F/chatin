@@ -6,16 +6,35 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
-  CoreMessage,
-  LanguageModelV1,
+  type JSONValue,
+  type LanguageModel,
+  type ModelMessage,
   Tool,
+  type UIMessage,
+  convertToModelMessages,
   generateText,
+  stepCountIs,
   streamText,
   tool,
 } from "ai";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { searchSimilarChunks } from "./similarity-search";
+
+export type FeedbackGuidance = {
+  userQuestion: string;
+  expectedResponse: string;
+  feedbackNote: string | null;
+};
+
+type OpenRouterPromptCacheControl = {
+  type: "ephemeral";
+  ttl?: "1h";
+};
+
+type LlmProviderOptions = {
+  openrouter?: Record<string, JSONValue>;
+};
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -36,6 +55,57 @@ const groq = createGroq({
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
+
+function getOpenRouterPromptCacheControl(
+  model: Pick<ModelDetails, "name" | "provider"> | null,
+): OpenRouterPromptCacheControl | undefined {
+  if (model?.provider !== "openrouter") {
+    return undefined;
+  }
+
+  // Anthropic models require explicit cache control for automatic prompt caching.
+  if (!model.name.startsWith("anthropic/")) {
+    return undefined;
+  }
+
+  if (process.env.OPENROUTER_PROMPT_CACHE_TTL === "1h") {
+    return { type: "ephemeral", ttl: "1h" };
+  }
+
+  return { type: "ephemeral" };
+}
+
+function buildLlmProviderOptions({
+  model,
+  requestUserId,
+}: {
+  model: Pick<ModelDetails, "name" | "provider"> | null;
+  requestUserId?: string;
+}): LlmProviderOptions | undefined {
+  if (model?.provider !== "openrouter") {
+    return undefined;
+  }
+
+  const openrouterOptions: Record<string, JSONValue> = {
+    usage: {
+      include: true,
+    },
+  };
+
+  const cacheControl = getOpenRouterPromptCacheControl(model);
+  if (cacheControl) {
+    openrouterOptions.cache_control = cacheControl;
+  }
+
+  const normalizedUserId = requestUserId?.trim();
+  if (normalizedUserId) {
+    openrouterOptions.user = normalizedUserId;
+  }
+
+  return {
+    openrouter: openrouterOptions,
+  };
+}
 
 export function getLLMProvider(
   model: Pick<ModelDetails, "name" | "provider"> | null,
@@ -60,12 +130,156 @@ export function getLLMProvider(
   }
 }
 
-function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
+type MessagePartLike = {
+  type?: string;
+  text?: string;
+};
+
+function normalizeQuestion(text: string) {
+  return text
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9\s]/g, " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+}
+
+function extractTextFromMessage(message: UIMessage) {
+  const parts = (message as { parts?: MessagePartLike[] }).parts;
+
+  if (!Array.isArray(parts)) {
+    return "";
+  }
+
+  return parts
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text?.trim() || "")
+    .filter((text) => text.length > 0)
+    .join("\n\n");
+}
+
+function getLatestUserQuestion(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const text = extractTextFromMessage(message);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
+function prioritizeFeedbackGuidance(
+  feedbackGuidance: FeedbackGuidance[],
+  currentUserQuestion: string,
+) {
+  if (feedbackGuidance.length === 0) {
+    return {
+      prioritizedGuidance: [] as FeedbackGuidance[],
+      exactMatches: [] as FeedbackGuidance[],
+    };
+  }
+
+  const normalizedCurrent = normalizeQuestion(currentUserQuestion);
+
+  const exactMatches = feedbackGuidance.filter(
+    (feedback) =>
+      normalizedCurrent.length > 0 &&
+      normalizeQuestion(feedback.userQuestion) === normalizedCurrent,
+  );
+
+  const relatedMatches = feedbackGuidance.filter((feedback) => {
+    const normalizedFeedbackQuestion = normalizeQuestion(feedback.userQuestion);
+
+    if (!normalizedCurrent || !normalizedFeedbackQuestion) {
+      return false;
+    }
+
+    return (
+      normalizedFeedbackQuestion.includes(normalizedCurrent) ||
+      normalizedCurrent.includes(normalizedFeedbackQuestion)
+    );
+  });
+
+  const prioritizedGuidance = [
+    ...exactMatches,
+    ...relatedMatches,
+    ...feedbackGuidance,
+  ].filter((feedback, index, list) => {
+    const firstIndex = list.findIndex(
+      (candidate) =>
+        candidate.userQuestion === feedback.userQuestion &&
+        candidate.expectedResponse === feedback.expectedResponse &&
+        candidate.feedbackNote === feedback.feedbackNote,
+    );
+
+    return firstIndex === index;
+  });
+
+  return { prioritizedGuidance, exactMatches };
+}
+
+function generateSysPrompt(
+  agentConfig: AgentWithKnowledgeBase,
+  feedbackGuidance: FeedbackGuidance[] = [],
+  currentUserQuestion = "",
+) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
   }
 
   const { name, systemPrompt, personas, knowledgeBases } = agentConfig;
+
+  const { prioritizedGuidance, exactMatches } = prioritizeFeedbackGuidance(
+    feedbackGuidance,
+    currentUserQuestion,
+  );
+
+  const exactMatchDirective =
+    exactMatches.length > 0
+      ? `
+🚨 **Exact Match Correction Rule (MANDATORY)**
+- The current user question matches a previously corrected question.
+- You MUST prioritize the preferred response below as the source of truth for the answer.
+- Do not contradict it, even if retrieved chunks suggest alternatives.
+
+Current Question:
+${currentUserQuestion}
+
+Required Preferred Response:
+${exactMatches[0].expectedResponse}
+`
+      : "";
+
+  const feedbackGuidancePrompt =
+    prioritizedGuidance.length > 0
+      ? `
+🎯 **User Feedback Guidance (High Priority)**
+- Use the following correction examples to align your answer with this user's expectation.
+- Keep this guidance internal and never mention feedback records explicitly.
+- If the current question is the same as one of these examples, follow the preferred response directly.
+
+${exactMatchDirective}
+
+${prioritizedGuidance
+  .map(
+    (feedback, index) =>
+      `${index + 1}. User Question: ${feedback.userQuestion}
+   Preferred Response: ${feedback.expectedResponse}${
+     feedback.feedbackNote
+       ? `
+   Additional Note: ${feedback.feedbackNote}`
+       : ""
+   }`,
+  )
+  .join("\n\n")}
+`
+      : "";
 
   return `
 **Role**
@@ -109,7 +323,13 @@ ${
 
 📝 **Additional Instructions**
 ${systemPrompt}
+
+${feedbackGuidancePrompt}
   `.trim();
+}
+
+function toSafeModelMessages(messages: UIMessage[]): ModelMessage[] {
+  return convertToModelMessages(messages, { ignoreIncompleteToolCalls: true });
 }
 
 export function generateStreamResponse({
@@ -117,25 +337,46 @@ export function generateStreamResponse({
   agentConfig,
   messages,
   agentId,
+  feedbackGuidance = [],
+  requestUserId,
 }: {
-  model: LanguageModelV1;
+  model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
-  messages: CoreMessage[];
+  messages: UIMessage[];
   agentId: string;
+  feedbackGuidance?: FeedbackGuidance[];
+  requestUserId?: string;
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
   }
 
+  const shouldUseRetrievalTools =
+    agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
+  const providerOptions = buildLlmProviderOptions({
+    model: agentConfig.model,
+    requestUserId,
+  });
+
   const response = streamText({
-    maxSteps: 5,
+    maxRetries: 0,
+    stopWhen: stepCountIs(5),
     model,
-    system: generateSysPrompt(agentConfig),
-    messages,
+    system: generateSysPrompt(
+      agentConfig,
+      feedbackGuidance,
+      getLatestUserQuestion(messages),
+    ),
+    messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
-    tools: agentConfig.model.supportsToolUse
+
+    tools: shouldUseRetrievalTools
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+    toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
+    providerOptions,
+
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
   });
@@ -148,25 +389,46 @@ export function generateTextResponse({
   agentConfig,
   messages,
   agentId,
+  feedbackGuidance = [],
+  requestUserId,
 }: {
-  model: LanguageModelV1;
+  model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
-  messages: CoreMessage[];
+  messages: UIMessage[];
   agentId: string;
+  feedbackGuidance?: FeedbackGuidance[];
+  requestUserId?: string;
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
   }
 
+  const shouldUseRetrievalTools =
+    agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
+  const providerOptions = buildLlmProviderOptions({
+    model: agentConfig.model,
+    requestUserId,
+  });
+
   const response = generateText({
-    maxSteps: 5,
+    maxRetries: 0,
+    stopWhen: stepCountIs(5),
     model,
-    system: generateSysPrompt(agentConfig),
-    messages,
+    system: generateSysPrompt(
+      agentConfig,
+      feedbackGuidance,
+      getLatestUserQuestion(messages),
+    ),
+    messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
-    tools: agentConfig.model.supportsToolUse
+
+    tools: shouldUseRetrievalTools
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+    toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
+    providerOptions,
+
     topP: agentConfig.topP || 1,
   });
 
@@ -188,16 +450,22 @@ function llmToolsConfig({
     retrieve_context: tool({
       description:
         "Retrieve context from knowledge base to answer question that you might not know",
-      parameters: z.object({
+      inputSchema: z.object({
         userQuestion: z.string().describe("The user's question"),
       }),
       execute: async ({ userQuestion }) => {
         console.log("Calling Retrieve Context");
+        const normalizedTopK = Math.max(1, Math.floor(agentConfig.topK ?? 5));
+        const normalizedSimilarityThreshold = Math.min(
+          1,
+          Math.max(0, agentConfig.similarityThreshold ?? 0.5),
+        );
+
         const context = await searchSimilarChunks({
           query: userQuestion,
           agentId,
-          topK: agentConfig.topK || 5,
-          similarityThreshold: agentConfig.similarityThreshold || 0.5,
+          topK: normalizedTopK,
+          similarityThreshold: normalizedSimilarityThreshold,
         });
         return context;
       },
@@ -206,3 +474,20 @@ function llmToolsConfig({
 
   return tools;
 }
+
+export const DEFAULT_EXTRACTION_PROMPT = `
+You are an expert document analyst. You will receive a PDF document containing business presentation slides.
+
+Extract ALL content from EVERY page/slide into clean, structured markdown. Be thorough and precise:
+
+- Preserve all text exactly as written (titles, subtitles, body text, labels)
+- Convert ALL tables into markdown table format (| col | col |)
+- Represent bullet lists as markdown lists
+- For charts or graphs: describe the data and extract all visible numbers/labels
+- For pricing or data grids: extract as markdown tables with ALL values — do not skip any rows
+- Note any logos, icons, or visual elements briefly (e.g., "[Company Logo: XYZ]")
+- Do NOT summarize, skip, or omit any slide or section
+- Do NOT add commentary, introductions, or summaries — only extracted content
+
+Output ONLY the structured markdown, nothing else.
+`.trim();

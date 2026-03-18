@@ -12,6 +12,7 @@ import {
 import { truncateCharacters } from "@/lib/utils";
 import { AgentDetails } from "@/service/agents";
 import { KnowledgeBase } from "@/service/knowledgebases";
+import { ModelDetails } from "@/service/model";
 import { Eye } from "lucide-react";
 import { useState } from "react";
 
@@ -24,10 +25,12 @@ import PreviewKnowledgebase from "./preview-knowledgebase";
 export default function AgentKnowledgebases({
   agentKnowledgeBases,
   agentDetails,
+  models,
   userId,
 }: {
   agentKnowledgeBases: KnowledgeBase[];
   agentDetails: AgentDetails;
+  models: ModelDetails[];
   userId: string;
 }) {
   const [documentPreview, setDocumentPreview] = useState<KnowledgeBase | null>(
@@ -99,7 +102,11 @@ export default function AgentKnowledgebases({
             )}
           </TabsContent>
           <TabsContent value="document">
-            <UploadKnowledgeForm agentId={agentDetails.id} userId={userId} />
+            <UploadKnowledgeForm
+              agentId={agentDetails.id}
+              userId={userId}
+              models={models}
+            />
           </TabsContent>
           <TabsContent value="url">
             <CrawlURL agentId={agentDetails.id} />

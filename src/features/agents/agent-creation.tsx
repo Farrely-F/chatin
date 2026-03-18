@@ -21,7 +21,11 @@ import { Input } from "@/components/ui/input";
 import SliderControl from "@/components/ui/slider-control";
 import { Textarea } from "@/components/ui/textarea";
 import { slugify } from "@/lib/utils";
-import { AgentFormValues, agentFormSchema } from "@/schema/agent-schema";
+import {
+  AgentFormInput,
+  AgentFormValues,
+  agentFormSchema,
+} from "@/schema/agent-schema";
 import { createNewAgent } from "@/service/agents";
 import { ModelDetails } from "@/service/model";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,7 +41,7 @@ export default function AgentCreation({ models }: { models: ModelDetails[] }) {
   const { data: session } = useSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const form = useForm<AgentFormValues>({
+  const form = useForm<AgentFormInput, unknown, AgentFormValues>({
     resolver: zodResolver(agentFormSchema),
     defaultValues: {
       name: "",
