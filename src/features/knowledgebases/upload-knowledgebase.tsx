@@ -22,7 +22,7 @@ import { ModelDetails } from "@/service/model";
 import { Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod/v4";
 
@@ -59,6 +59,7 @@ export default function UploadKnowledgeForm({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const availableAgenticModels = models.filter(
     (model) => model.isAvailable && model.supportsObjectGeneration,
@@ -103,8 +104,12 @@ export default function UploadKnowledgeForm({
 
     if (selectedFile) {
       if (!validateFile(selectedFile)) {
+        if (pdfUrl) {
+          URL.revokeObjectURL(pdfUrl);
+        }
         setFile(null);
         setPdfUrl(null);
+        setPreviewMode(false);
         return;
       }
 
@@ -117,9 +122,11 @@ export default function UploadKnowledgeForm({
       setFile(selectedFile);
       setPdfUrl(fileObjectUrl);
       setError(null);
+      setPreviewMode(true);
     } else {
       setFile(null);
       setPdfUrl(null);
+      setPreviewMode(false);
     }
   };
 
@@ -141,6 +148,7 @@ export default function UploadKnowledgeForm({
       setFile(droppedFile);
       setPdfUrl(fileObjectUrl);
       setError(null);
+      setPreviewMode(true);
     }
   };
 
@@ -149,7 +157,11 @@ export default function UploadKnowledgeForm({
   };
 
   const openFilePicker = () => {
-    document.getElementById("pdf-upload")?.click();
+    if (fileInputRef.current) {
+      // Allow re-selecting the same file by clearing previous input value first.
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
   };
 
   const handleUpload = async () => {
@@ -202,6 +214,9 @@ export default function UploadKnowledgeForm({
         setPdfUrl(null);
       }
       setPreviewMode(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message);
@@ -216,7 +231,7 @@ export default function UploadKnowledgeForm({
   };
 
   const togglePreviewMode = () => {
-    setPreviewMode(!previewMode);
+    setPreviewMode((prev) => !prev);
   };
 
   const clearSelection = () => {
@@ -225,7 +240,11 @@ export default function UploadKnowledgeForm({
     }
     setFile(null);
     setPdfUrl(null);
+    setPreviewMode(false);
     setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -256,6 +275,7 @@ export default function UploadKnowledgeForm({
               >
                 <input
                   id="pdf-upload"
+                  ref={fileInputRef}
                   type="file"
                   accept="application/pdf"
                   onChange={handleFileChange}
@@ -267,7 +287,10 @@ export default function UploadKnowledgeForm({
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="font-medium mb-1 truncate @max-xs:w-[200px]">
+                    <p
+                      className="mb-1 w-full max-w-full break-all px-2 text-center font-medium leading-snug"
+                      title={file.name}
+                    >
                       {file.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
@@ -398,9 +421,7 @@ export default function UploadKnowledgeForm({
               </div>
             </div>
 
-            <div
-              className={`${previewMode && pdfUrl ? "block" : "hidden"} md:block`}
-            >
+            <div className={previewMode && pdfUrl ? "block" : "hidden"}>
               <div className="rounded-lg border overflow-hidden h-[400px] bg-muted/30">
                 {pdfUrl ? (
                   <iframe

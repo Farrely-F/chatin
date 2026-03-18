@@ -1,5 +1,6 @@
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
+import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { ApiHandlerArgs } from "@/types/api";
 import { UIMessage } from "ai";
@@ -24,10 +25,9 @@ async function postHandler(...args: ApiHandlerArgs) {
       );
     }
 
-    const agentConfig = await getAgentWithKnowledgeBase(
-      agentId,
-      req.authorized?.userId || user_id || "",
-    );
+    const requestUserId = req.authorized?.userId || user_id || "";
+
+    const agentConfig = await getAgentWithKnowledgeBase(agentId, requestUserId);
 
     if ("error" in agentConfig) {
       return NextResponse.json(
@@ -49,6 +49,9 @@ async function postHandler(...args: ApiHandlerArgs) {
       agentConfig,
       messages,
       agentId,
+      feedbackGuidance: requestUserId
+        ? await getRecentAgentFeedbackHints(agentId, requestUserId, 5)
+        : [],
     });
 
     return response.toUIMessageStreamResponse({

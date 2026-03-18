@@ -1,11 +1,12 @@
 import { auth } from "@/lib/auth/auth";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
+import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { verifyApiKey } from "@/service/api-key";
 import { UIMessage } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN!;
+const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN ?? "";
 
 export async function POST(
   req: NextRequest,
@@ -79,6 +80,7 @@ export async function POST(
     agentConfig,
     messages,
     agentId,
+    feedbackGuidance: await getRecentAgentFeedbackHints(agentId, user_id, 5),
   });
 
   if ("error" in response) {

@@ -9,7 +9,15 @@ import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DefaultChatTransport } from "ai";
-import { ArrowLeft, FlaskConical, StopCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  FlaskConical,
+  Send,
+  StopCircle,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   Children,
@@ -17,6 +25,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   useTransition,
 } from "react";
 import { useForm } from "react-hook-form";
@@ -25,6 +34,7 @@ import { toast } from "sonner";
 import { z } from "zod/v4";
 
 import { Badge } from "./badge";
+import { submitPlaygroundFeedbackAction } from "./chat-feedback-actions";
 import { ChatMessage } from "./chat-message";
 import { CodeBlock } from "./code-block";
 import { Form, FormField } from "./form";
@@ -50,6 +60,25 @@ type ChatPartLike = {
   type: string;
   state?: string;
   output?: unknown;
+  text?: string;
+  toolCallId?: string;
+};
+
+type FeedbackDraft = {
+  isHelpful: boolean | null;
+  expectedResponse: string;
+  feedbackNote: string;
+  isSubmitting: boolean;
+  isSubmitted: boolean;
+};
+
+type FeedbackPayload = {
+  assistantMessageId: string;
+  isHelpful: boolean;
+  userQuestion: string;
+  agentResponse: string;
+  expectedResponse?: string;
+  feedbackNote?: string;
 };
 
 function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
@@ -145,6 +174,24 @@ function getCodeText(children: ReactNode) {
     .join("");
 }
 
+function extractTextFromParts(parts: ChatPartLike[]) {
+  return parts
+    .filter((part) => part.type === "text" && typeof part.text === "string")
+    .map((part) => part.text?.trim() || "")
+    .filter((text) => text.length > 0)
+    .join("\n\n");
+}
+
+function hasTextContent(parts: ChatPartLike[]) {
+  return parts.some(
+    (part) => part.type === "text" && (part.text?.trim().length ?? 0) > 0,
+  );
+}
+
+function isToolCallPart(part: ChatPartLike) {
+  return Boolean(part.toolCallId) && part.type.startsWith("tool-");
+}
+
 const markdownComponents = {
   code({ className, children, ...props }: React.ComponentProps<"code">) {
     const match = /language-(\w+)/.exec(className || "");
@@ -159,6 +206,208 @@ const markdownComponents = {
     );
   },
 };
+
+type AssistantResponseInspectorProps = Readonly<{
+  activeModelName?: string;
+  messageTokens: number;
+  retrievalDebug: ReturnType<typeof collectRetrievalDebug>;
+  normalizedSimilarityThreshold: number;
+  normalizedTopK: number;
+  assistantResponseText: string;
+  feedbackDraft: FeedbackDraft;
+  onHelpful: () => void;
+  onNeedsCorrection: () => void;
+  onExpectedResponseChange: (value: string) => void;
+  onFeedbackNoteChange: (value: string) => void;
+  onSubmitCorrection: () => void;
+}>;
+
+function AssistantResponseInspector({
+  activeModelName,
+  messageTokens,
+  retrievalDebug,
+  normalizedSimilarityThreshold,
+  normalizedTopK,
+  assistantResponseText,
+  feedbackDraft,
+  onHelpful,
+  onNeedsCorrection,
+  onExpectedResponseChange,
+  onFeedbackNoteChange,
+  onSubmitCorrection,
+}: AssistantResponseInspectorProps) {
+  const confidence = getSimilarityConfidence(retrievalDebug.averageSimilarity);
+
+  return (
+    <details className="rounded-xl border border-dashed bg-muted/40 p-3 mt-3">
+      <summary className="list-none cursor-pointer">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="secondary">Debug</Badge>
+          <span>Model: {activeModelName ?? "unknown"}</span>
+          <span>Tokens: {messageTokens}</span>
+          <span>Retrieval calls: {retrievalDebug.retrievalCalls}</span>
+          <span>
+            Avg similarity: {formatSimilarity(retrievalDebug.averageSimilarity)}
+          </span>
+          {retrievalDebug.retrievalCalls > 0 && (
+            <span className={cn("font-medium", confidence.tone)}>
+              Confidence: {confidence.label}
+            </span>
+          )}
+        </div>
+      </summary>
+
+      <div className="mt-3 grid gap-3">
+        <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Similarity Threshold</p>
+            <p className="font-medium text-foreground">
+              {formatSimilarity(normalizedSimilarityThreshold)}
+            </p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Top K</p>
+            <p className="font-medium text-foreground">{normalizedTopK}</p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Retrieved Chunks</p>
+            <p className="font-medium text-foreground">
+              {retrievalDebug.retrievedChunks.length}
+            </p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Top Similarity</p>
+            <p className="font-medium text-foreground">
+              {formatSimilarity(retrievalDebug.topSimilarity)}
+            </p>
+          </div>
+        </div>
+
+        {retrievalDebug.retrievalErrors > 0 && (
+          <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {retrievalDebug.retrievalErrors} retrieval tool call
+            {retrievalDebug.retrievalErrors > 1 ? "s" : ""} failed for this
+            response.
+          </p>
+        )}
+
+        {retrievalDebug.retrievedChunks.length > 0 ? (
+          <ScrollArea className="max-h-72 rounded-md border bg-background p-3">
+            <div className="space-y-3">
+              {retrievalDebug.retrievedChunks
+                .slice(0, 8)
+                .map((chunk, index) => {
+                  const chunkConfidence = getSimilarityConfidence(
+                    chunk.similarity,
+                  );
+
+                  return (
+                    <div
+                      key={chunk.id}
+                      className="rounded-md border bg-muted/30 p-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium">Chunk {index + 1}</p>
+                        <p
+                          className={cn(
+                            "text-xs font-medium",
+                            chunkConfidence.tone,
+                          )}
+                        >
+                          {formatSimilarity(chunk.similarity)} •{" "}
+                          {chunkConfidence.label}
+                        </p>
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                        {chunk.content}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+          </ScrollArea>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No embedding chunks were returned for this reply.
+          </p>
+        )}
+
+        {assistantResponseText && (
+          <div className="rounded-md border bg-background p-3">
+            {feedbackDraft.isSubmitted ? (
+              <p className="flex items-center gap-2 text-xs text-emerald-700">
+                <CheckCircle2 className="size-4" />
+                Feedback recorded. Thanks, this will guide future responses.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Is this response aligned with your expected answer?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      feedbackDraft.isHelpful === true ? "default" : "outline"
+                    }
+                    disabled={feedbackDraft.isSubmitting}
+                    onClick={onHelpful}
+                  >
+                    <ThumbsUp />
+                    Helpful
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      feedbackDraft.isHelpful === false ? "default" : "outline"
+                    }
+                    disabled={feedbackDraft.isSubmitting}
+                    onClick={onNeedsCorrection}
+                  >
+                    <ThumbsDown />
+                    Needs Correction
+                  </Button>
+                </div>
+
+                {feedbackDraft.isHelpful === false && (
+                  <div className="space-y-2">
+                    <textarea
+                      value={feedbackDraft.expectedResponse}
+                      className="min-h-20 w-full rounded-md border bg-background p-2 text-xs"
+                      placeholder="Write the expected response, e.g. Biz Lite from Biz Manufacture category..."
+                      onChange={(event) =>
+                        onExpectedResponseChange(event.target.value)
+                      }
+                    />
+                    <textarea
+                      value={feedbackDraft.feedbackNote}
+                      className="min-h-16 w-full rounded-md border bg-background p-2 text-xs"
+                      placeholder="Optional note about why this response was not correct"
+                      onChange={(event) =>
+                        onFeedbackNoteChange(event.target.value)
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={feedbackDraft.isSubmitting}
+                      onClick={onSubmitCorrection}
+                    >
+                      <Send />
+                      Submit Feedback
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
 
 type ChatProps = Readonly<{
   agentDetails: AgentDetails;
@@ -176,6 +425,9 @@ export default function Chat({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<
+    Record<string, FeedbackDraft>
+  >({});
 
   const activeModel =
     models.find((model) => model.id === agentDetails.modelId) ?? null;
@@ -254,6 +506,119 @@ export default function Chat({
     }
   };
 
+  const updateFeedbackDraft = (
+    messageId: string,
+    updater: (prev: FeedbackDraft) => FeedbackDraft,
+  ) => {
+    setFeedbackDrafts((prev) => {
+      const current =
+        prev[messageId] ||
+        ({
+          isHelpful: null,
+          expectedResponse: "",
+          feedbackNote: "",
+          isSubmitting: false,
+          isSubmitted: false,
+        } satisfies FeedbackDraft);
+
+      return {
+        ...prev,
+        [messageId]: updater(current),
+      };
+    });
+  };
+
+  const submitResponseFeedback = async (payload: FeedbackPayload) => {
+    updateFeedbackDraft(payload.assistantMessageId, (prev) => ({
+      ...prev,
+      isSubmitting: true,
+      isHelpful: payload.isHelpful,
+    }));
+
+    try {
+      const result = await submitPlaygroundFeedbackAction({
+        agentId: agentDetails.id,
+        ...payload,
+      });
+
+      if (!result.status) {
+        throw new Error(result.error || "Failed to submit feedback");
+      }
+
+      updateFeedbackDraft(payload.assistantMessageId, (prev) => ({
+        ...prev,
+        isSubmitting: false,
+        isSubmitted: true,
+      }));
+
+      toast.success(
+        "Feedback saved. Future replies will follow your guidance.",
+      );
+    } catch (error) {
+      updateFeedbackDraft(payload.assistantMessageId, (prev) => ({
+        ...prev,
+        isSubmitting: false,
+      }));
+
+      toast.error(error instanceof Error ? error.message : "Feedback failed");
+    }
+  };
+
+  const setNeedsCorrection = (messageId: string) => {
+    updateFeedbackDraft(messageId, (prev) => ({
+      ...prev,
+      isHelpful: false,
+    }));
+  };
+
+  const setExpectedResponseDraft = (messageId: string, value: string) => {
+    updateFeedbackDraft(messageId, (prev) => ({
+      ...prev,
+      expectedResponse: value,
+    }));
+  };
+
+  const setFeedbackNoteDraft = (messageId: string, value: string) => {
+    updateFeedbackDraft(messageId, (prev) => ({
+      ...prev,
+      feedbackNote: value,
+    }));
+  };
+
+  const submitHelpfulFeedback = (
+    messageId: string,
+    userQuestion: string,
+    agentResponse: string,
+  ) => {
+    void submitResponseFeedback({
+      assistantMessageId: messageId,
+      isHelpful: true,
+      userQuestion,
+      agentResponse,
+    });
+  };
+
+  const submitCorrectiveFeedback = (
+    messageId: string,
+    userQuestion: string,
+    agentResponse: string,
+    draft: FeedbackDraft,
+  ) => {
+    if (!draft.expectedResponse.trim()) {
+      toast.error("Expected response is required");
+      return;
+    }
+
+    void submitResponseFeedback({
+      assistantMessageId: messageId,
+      isHelpful: false,
+      userQuestion,
+      agentResponse,
+      expectedResponse: draft.expectedResponse,
+      feedbackNote: draft.feedbackNote,
+    });
+  };
+
   const lastAssistantDebug = [...messages]
     .reverse()
     .filter((message) => message.role === "assistant")
@@ -325,23 +690,41 @@ export default function Chat({
       {/* Chat */}
       <div className="relative grow">
         <div className="max-w-5xl mx-auto mt-6 space-y-6 space-x-2 px-2">
-          {messages.map((msg) => {
+          {messages.map((msg, messageIndex) => {
             const textPartIndex = msg.parts.findIndex(
               (messagePart) => messagePart.type === "text",
             );
             const retrievalDebug = collectRetrievalDebug(
               msg.parts as ChatPartLike[],
             );
+            const assistantResponseText = extractTextFromParts(
+              msg.parts as ChatPartLike[],
+            );
+            const previousUserMessage = [...messages]
+              .slice(0, messageIndex)
+              .reverse()
+              .find((message) => message.role === "user");
+            const userQuestion = previousUserMessage
+              ? extractTextFromParts(
+                  previousUserMessage.parts as ChatPartLike[],
+                )
+              : "";
+
+            const feedbackDraft =
+              feedbackDrafts[msg.id] ||
+              ({
+                isHelpful: null,
+                expectedResponse: "",
+                feedbackNote: "",
+                isSubmitting: false,
+                isSubmitted: false,
+              } satisfies FeedbackDraft);
             const messageTokens =
               (msg.metadata as MessageMetadata | undefined)?.totalUsage
                 ?.totalTokens ?? 0;
 
-            return msg.parts.map((part, idx) => {
+            return (msg.parts as ChatPartLike[]).map((part, idx) => {
               if (part.type === "text") {
-                const confidence = getSimilarityConfidence(
-                  retrievalDebug.averageSimilarity,
-                );
-
                 return (
                   <ChatMessage
                     agentName={agentDetails.name}
@@ -354,136 +737,49 @@ export default function Chat({
                     </ReactMarkdown>
 
                     {msg.role === "assistant" && idx === textPartIndex && (
-                      <details className="rounded-xl border border-dashed bg-muted/40 p-3 mt-3">
-                        <summary className="list-none cursor-pointer">
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="secondary">Debug</Badge>
-                            <span>Model: {activeModel?.name ?? "unknown"}</span>
-                            <span>Tokens: {messageTokens}</span>
-                            <span>
-                              Retrieval calls: {retrievalDebug.retrievalCalls}
-                            </span>
-                            <span>
-                              Avg similarity:{" "}
-                              {formatSimilarity(
-                                retrievalDebug.averageSimilarity,
-                              )}
-                            </span>
-                            {retrievalDebug.retrievalCalls > 0 && (
-                              <span
-                                className={cn("font-medium", confidence.tone)}
-                              >
-                                Confidence: {confidence.label}
-                              </span>
-                            )}
-                          </div>
-                        </summary>
-
-                        <div className="mt-3 grid gap-3">
-                          <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-                            <div className="rounded-md border bg-background p-2">
-                              <p className="text-muted-foreground">
-                                Similarity Threshold
-                              </p>
-                              <p className="font-medium text-foreground">
-                                {formatSimilarity(
-                                  normalizedSimilarityThreshold,
-                                )}
-                              </p>
-                            </div>
-                            <div className="rounded-md border bg-background p-2">
-                              <p className="text-muted-foreground">Top K</p>
-                              <p className="font-medium text-foreground">
-                                {normalizedTopK}
-                              </p>
-                            </div>
-                            <div className="rounded-md border bg-background p-2">
-                              <p className="text-muted-foreground">
-                                Retrieved Chunks
-                              </p>
-                              <p className="font-medium text-foreground">
-                                {retrievalDebug.retrievedChunks.length}
-                              </p>
-                            </div>
-                            <div className="rounded-md border bg-background p-2">
-                              <p className="text-muted-foreground">
-                                Top Similarity
-                              </p>
-                              <p className="font-medium text-foreground">
-                                {formatSimilarity(retrievalDebug.topSimilarity)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {retrievalDebug.retrievalErrors > 0 && (
-                            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                              {retrievalDebug.retrievalErrors} retrieval tool
-                              call
-                              {retrievalDebug.retrievalErrors > 1
-                                ? "s"
-                                : ""}{" "}
-                              failed for this response.
-                            </p>
-                          )}
-
-                          {retrievalDebug.retrievedChunks.length > 0 ? (
-                            <ScrollArea className="max-h-72 rounded-md border bg-background p-3">
-                              <div className="space-y-3">
-                                {retrievalDebug.retrievedChunks
-                                  .slice(0, 8)
-                                  .map((chunk, chunkIndex) => {
-                                    const chunkConfidence =
-                                      getSimilarityConfidence(chunk.similarity);
-
-                                    return (
-                                      <div
-                                        key={chunk.id}
-                                        className="rounded-md border bg-muted/30 p-2"
-                                      >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <p className="text-xs font-medium">
-                                            Chunk {chunkIndex + 1}
-                                          </p>
-                                          <p
-                                            className={cn(
-                                              "text-xs font-medium",
-                                              chunkConfidence.tone,
-                                            )}
-                                          >
-                                            {formatSimilarity(chunk.similarity)}{" "}
-                                            • {chunkConfidence.label}
-                                          </p>
-                                        </div>
-                                        <p className="mt-2 whitespace-pre-wrap break-words text-xs text-muted-foreground">
-                                          {chunk.content}
-                                        </p>
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                            </ScrollArea>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              No embedding chunks were returned for this reply.
-                            </p>
-                          )}
-                        </div>
-                      </details>
+                      <AssistantResponseInspector
+                        activeModelName={activeModel?.name}
+                        messageTokens={messageTokens}
+                        retrievalDebug={retrievalDebug}
+                        normalizedSimilarityThreshold={
+                          normalizedSimilarityThreshold
+                        }
+                        normalizedTopK={normalizedTopK}
+                        assistantResponseText={assistantResponseText}
+                        feedbackDraft={feedbackDraft}
+                        onHelpful={() =>
+                          submitHelpfulFeedback(
+                            msg.id,
+                            userQuestion,
+                            assistantResponseText,
+                          )
+                        }
+                        onNeedsCorrection={() => setNeedsCorrection(msg.id)}
+                        onExpectedResponseChange={(value) =>
+                          setExpectedResponseDraft(msg.id, value)
+                        }
+                        onFeedbackNoteChange={(value) =>
+                          setFeedbackNoteDraft(msg.id, value)
+                        }
+                        onSubmitCorrection={() =>
+                          submitCorrectiveFeedback(
+                            msg.id,
+                            userQuestion,
+                            assistantResponseText,
+                            feedbackDraft,
+                          )
+                        }
+                      />
                     )}
                   </ChatMessage>
                 );
               }
 
-              if (!("toolCallId" in part) || !part.type.startsWith("tool-")) {
+              if (!isToolCallPart(part)) {
                 return null;
               }
 
-              const hasTextContent = msg.parts.some(
-                (msgPart) =>
-                  msgPart.type === "text" && msgPart.text.trim().length > 0,
-              );
-
-              if (hasTextContent) {
+              if (hasTextContent(msg.parts as ChatPartLike[])) {
                 return null;
               }
 

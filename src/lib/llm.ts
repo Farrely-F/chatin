@@ -20,6 +20,12 @@ import { z } from "zod/v4";
 
 import { searchSimilarChunks } from "./similarity-search";
 
+export type FeedbackGuidance = {
+  userQuestion: string;
+  expectedResponse: string;
+  feedbackNote: string | null;
+};
+
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -63,12 +69,156 @@ export function getLLMProvider(
   }
 }
 
-function generateSysPrompt(agentConfig: AgentWithKnowledgeBase) {
+type MessagePartLike = {
+  type?: string;
+  text?: string;
+};
+
+function normalizeQuestion(text: string) {
+  return text
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9\s]/g, " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
+}
+
+function extractTextFromMessage(message: UIMessage) {
+  const parts = (message as { parts?: MessagePartLike[] }).parts;
+
+  if (!Array.isArray(parts)) {
+    return "";
+  }
+
+  return parts
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text?.trim() || "")
+    .filter((text) => text.length > 0)
+    .join("\n\n");
+}
+
+function getLatestUserQuestion(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const text = extractTextFromMessage(message);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
+function prioritizeFeedbackGuidance(
+  feedbackGuidance: FeedbackGuidance[],
+  currentUserQuestion: string,
+) {
+  if (feedbackGuidance.length === 0) {
+    return {
+      prioritizedGuidance: [] as FeedbackGuidance[],
+      exactMatches: [] as FeedbackGuidance[],
+    };
+  }
+
+  const normalizedCurrent = normalizeQuestion(currentUserQuestion);
+
+  const exactMatches = feedbackGuidance.filter(
+    (feedback) =>
+      normalizedCurrent.length > 0 &&
+      normalizeQuestion(feedback.userQuestion) === normalizedCurrent,
+  );
+
+  const relatedMatches = feedbackGuidance.filter((feedback) => {
+    const normalizedFeedbackQuestion = normalizeQuestion(feedback.userQuestion);
+
+    if (!normalizedCurrent || !normalizedFeedbackQuestion) {
+      return false;
+    }
+
+    return (
+      normalizedFeedbackQuestion.includes(normalizedCurrent) ||
+      normalizedCurrent.includes(normalizedFeedbackQuestion)
+    );
+  });
+
+  const prioritizedGuidance = [
+    ...exactMatches,
+    ...relatedMatches,
+    ...feedbackGuidance,
+  ].filter((feedback, index, list) => {
+    const firstIndex = list.findIndex(
+      (candidate) =>
+        candidate.userQuestion === feedback.userQuestion &&
+        candidate.expectedResponse === feedback.expectedResponse &&
+        candidate.feedbackNote === feedback.feedbackNote,
+    );
+
+    return firstIndex === index;
+  });
+
+  return { prioritizedGuidance, exactMatches };
+}
+
+function generateSysPrompt(
+  agentConfig: AgentWithKnowledgeBase,
+  feedbackGuidance: FeedbackGuidance[] = [],
+  currentUserQuestion = "",
+) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
   }
 
   const { name, systemPrompt, personas, knowledgeBases } = agentConfig;
+
+  const { prioritizedGuidance, exactMatches } = prioritizeFeedbackGuidance(
+    feedbackGuidance,
+    currentUserQuestion,
+  );
+
+  const exactMatchDirective =
+    exactMatches.length > 0
+      ? `
+🚨 **Exact Match Correction Rule (MANDATORY)**
+- The current user question matches a previously corrected question.
+- You MUST prioritize the preferred response below as the source of truth for the answer.
+- Do not contradict it, even if retrieved chunks suggest alternatives.
+
+Current Question:
+${currentUserQuestion}
+
+Required Preferred Response:
+${exactMatches[0].expectedResponse}
+`
+      : "";
+
+  const feedbackGuidancePrompt =
+    prioritizedGuidance.length > 0
+      ? `
+🎯 **User Feedback Guidance (High Priority)**
+- Use the following correction examples to align your answer with this user's expectation.
+- Keep this guidance internal and never mention feedback records explicitly.
+- If the current question is the same as one of these examples, follow the preferred response directly.
+
+${exactMatchDirective}
+
+${prioritizedGuidance
+  .map(
+    (feedback, index) =>
+      `${index + 1}. User Question: ${feedback.userQuestion}
+   Preferred Response: ${feedback.expectedResponse}${
+     feedback.feedbackNote
+       ? `
+   Additional Note: ${feedback.feedbackNote}`
+       : ""
+   }`,
+  )
+  .join("\n\n")}
+`
+      : "";
 
   return `
 **Role**
@@ -112,6 +262,8 @@ ${
 
 📝 **Additional Instructions**
 ${systemPrompt}
+
+${feedbackGuidancePrompt}
   `.trim();
 }
 
@@ -124,11 +276,13 @@ export function generateStreamResponse({
   agentConfig,
   messages,
   agentId,
+  feedbackGuidance = [],
 }: {
   model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
   messages: UIMessage[];
   agentId: string;
+  feedbackGuidance?: FeedbackGuidance[];
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
@@ -141,7 +295,11 @@ export function generateStreamResponse({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
     model,
-    system: generateSysPrompt(agentConfig),
+    system: generateSysPrompt(
+      agentConfig,
+      feedbackGuidance,
+      getLatestUserQuestion(messages),
+    ),
     messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
 
@@ -162,11 +320,13 @@ export function generateTextResponse({
   agentConfig,
   messages,
   agentId,
+  feedbackGuidance = [],
 }: {
   model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
   messages: UIMessage[];
   agentId: string;
+  feedbackGuidance?: FeedbackGuidance[];
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
@@ -179,7 +339,11 @@ export function generateTextResponse({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
     model,
-    system: generateSysPrompt(agentConfig),
+    system: generateSysPrompt(
+      agentConfig,
+      feedbackGuidance,
+      getLatestUserQuestion(messages),
+    ),
     messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
 
