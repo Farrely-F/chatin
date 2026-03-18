@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import SliderControl from "@/components/ui/slider-control";
 import { ModelDetails } from "@/service/model";
 import { Eye, FileText, Upload, X } from "lucide-react";
@@ -48,15 +49,15 @@ export default function UploadKnowledgeForm({
   userId,
   agentId,
   models,
-}: Props) {
+}: Readonly<Props>) {
   const router = useRouter();
-  const [chunkSize, setChunkSize] = useState(100);
+  const [chunkSize, setChunkSize] = useState(500);
   const [file, setFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [parseMethod, setParseMethod] = useState<"pdf" | "agentic">("pdf");
   const [parseModelId, setParseModelId] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
 
   const availableAgenticModels = models.filter(
@@ -122,7 +123,7 @@ export default function UploadKnowledgeForm({
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0] || null;
 
@@ -143,8 +144,12 @@ export default function UploadKnowledgeForm({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
+  };
+
+  const openFilePicker = () => {
+    document.getElementById("pdf-upload")?.click();
   };
 
   const handleUpload = async () => {
@@ -240,13 +245,14 @@ export default function UploadKnowledgeForm({
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <div
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
+              <button
+                type="button"
+                className={`w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
                   file ? "border-primary" : "border-border"
                 }`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                onClick={() => document.getElementById("pdf-upload")?.click()}
+                onClick={openFilePicker}
               >
                 <input
                   id="pdf-upload"
@@ -267,30 +273,6 @@ export default function UploadKnowledgeForm({
                     <p className="text-sm text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePreviewMode();
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        {previewMode ? "Hide Preview" : "Preview"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearSelection();
-                        }}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Clear
-                      </Button>
-                    </div>
                   </div>
                 ) : (
                   <>
@@ -303,7 +285,36 @@ export default function UploadKnowledgeForm({
                     </p>
                   </>
                 )}
-              </div>
+              </button>
+
+              {file && (
+                <div className="my-3 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={togglePreviewMode}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {previewMode ? "Hide Preview" : "Preview"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSelection}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear
+                  </Button>
+                </div>
+              )}
+
+              {error && (
+                <p className="mt-2 text-sm text-destructive">{error}</p>
+              )}
+
+              <Separator className="my-6" />
 
               <div className="mt-2 space-y-4">
                 <div className="space-y-2">
@@ -357,9 +368,9 @@ export default function UploadKnowledgeForm({
 
                 <SliderControl
                   label="Chunk Size"
-                  minValue={100}
-                  maxValue={1000}
-                  step={10}
+                  minValue={300}
+                  maxValue={1500}
+                  step={50}
                   defaultValue={[chunkSize]}
                   value={[chunkSize]}
                   onChange={(value) => setChunkSize(value[0])}

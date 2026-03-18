@@ -7,6 +7,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   type LanguageModel,
+  type ModelMessage,
   Tool,
   type UIMessage,
   convertToModelMessages,
@@ -114,6 +115,10 @@ ${systemPrompt}
   `.trim();
 }
 
+function toSafeModelMessages(messages: UIMessage[]): ModelMessage[] {
+  return convertToModelMessages(messages, { ignoreIncompleteToolCalls: true });
+}
+
 export function generateStreamResponse({
   model,
   agentConfig,
@@ -129,17 +134,21 @@ export function generateStreamResponse({
     throw new Error(agentConfig.error);
   }
 
+  const shouldUseRetrievalTools =
+    agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
   const response = streamText({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
     model,
     system: generateSysPrompt(agentConfig),
-    messages: convertToModelMessages(messages),
+    messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
 
-    tools: agentConfig.model.supportsToolUse
+    tools: shouldUseRetrievalTools
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+    toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
 
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
@@ -163,17 +172,21 @@ export function generateTextResponse({
     throw new Error(agentConfig.error);
   }
 
+  const shouldUseRetrievalTools =
+    agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
   const response = generateText({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
     model,
     system: generateSysPrompt(agentConfig),
-    messages: convertToModelMessages(messages),
+    messages: toSafeModelMessages(messages),
     temperature: agentConfig.temperature || 0.7,
 
-    tools: agentConfig.model.supportsToolUse
+    tools: shouldUseRetrievalTools
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
+    toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
 
     topP: agentConfig.topP || 1,
   });
@@ -201,11 +214,17 @@ function llmToolsConfig({
       }),
       execute: async ({ userQuestion }) => {
         console.log("Calling Retrieve Context");
+        const normalizedTopK = Math.max(1, Math.floor(agentConfig.topK ?? 5));
+        const normalizedSimilarityThreshold = Math.min(
+          1,
+          Math.max(0, agentConfig.similarityThreshold ?? 0.5),
+        );
+
         const context = await searchSimilarChunks({
           query: userQuestion,
           agentId,
-          topK: agentConfig.topK || 5,
-          similarityThreshold: agentConfig.similarityThreshold || 0.5,
+          topK: normalizedTopK,
+          similarityThreshold: normalizedSimilarityThreshold,
         });
         return context;
       },

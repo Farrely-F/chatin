@@ -49,13 +49,13 @@ export default function EditAgenConfig({
   personas,
   userId,
   callback,
-}: {
+}: Readonly<{
   agentDetails: AgentDetails;
   models: ModelDetails[];
   personas: PersonaDetails[];
   userId: string;
   callback?: () => void;
-}) {
+}>) {
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<AgentFormInput, unknown, AgentFormValues>({
@@ -314,7 +314,7 @@ export default function EditAgenConfig({
                   defaultValue={agentDetails.topK ? [agentDetails.topK] : [5]}
                   value={[field.value!]}
                   onChange={(val) => field.onChange(val[0])}
-                  minValue={0}
+                  minValue={1}
                   maxValue={10}
                   step={1}
                 />

@@ -30,6 +30,8 @@ export const searchSimilarChunks = async ({
   similarityThreshold = 0.5,
 }: SimilaritySearch) => {
   const normalizedQuery = cleanText(query);
+  const normalizedTopK = Math.max(1, Math.floor(topK));
+  const normalizedThreshold = Math.min(1, Math.max(0, similarityThreshold));
   const queryEmbedding = await generateEmbeddings(normalizedQuery);
 
   const similarity = sql<number>`1 - (${cosineDistance(
@@ -37,7 +39,7 @@ export const searchSimilarChunks = async ({
     queryEmbedding,
   )})`;
 
-  const results = await db
+  const thresholdResults = await db
     .select({
       id: chunkEmbeddings.id,
       content: chunkEmbeddings.contentChunk,
@@ -47,11 +49,36 @@ export const searchSimilarChunks = async ({
     .where(
       and(
         eq(chunkEmbeddings.agentId, agentId),
-        gt(similarity, similarityThreshold),
+        gt(similarity, normalizedThreshold),
       ),
     )
     .orderBy((t) => desc(t.similarity))
-    .limit(topK);
+    .limit(normalizedTopK);
 
-  return results;
+  if (thresholdResults.length >= normalizedTopK) {
+    return thresholdResults;
+  }
+
+  const fallbackResults = await db
+    .select({
+      id: chunkEmbeddings.id,
+      content: chunkEmbeddings.contentChunk,
+      similarity,
+    })
+    .from(chunkEmbeddings)
+    .where(eq(chunkEmbeddings.agentId, agentId))
+    .orderBy((t) => desc(t.similarity))
+    .limit(normalizedTopK);
+
+  if (thresholdResults.length === 0) {
+    return fallbackResults;
+  }
+
+  const mergedById = new Map(
+    [...thresholdResults, ...fallbackResults].map((row) => [row.id, row]),
+  );
+
+  return Array.from(mergedById.values())
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, normalizedTopK);
 };

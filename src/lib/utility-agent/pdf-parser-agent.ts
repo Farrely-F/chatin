@@ -2,7 +2,6 @@ import { generateObject } from "ai";
 import { z } from "zod/v4";
 
 import { DEFAULT_EXTRACTION_PROMPT, getLLMProvider } from "../llm";
-import { cleanText } from "../utils";
 
 type AgenticParseModel = {
   name: string;
@@ -46,5 +45,5 @@ export async function parsePdfWithAgent(
     throw new Error("Failed to parse PDF with agent");
   }
 
-  return cleanText(object.content);
+  return object.content.trim();
 }
