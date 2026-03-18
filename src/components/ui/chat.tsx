@@ -46,7 +46,15 @@ const formSchema = z.object({
 
 type MessageMetadata = {
   totalUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
     totalTokens?: number;
+    cachedInputTokens?: number;
+  };
+  cache?: {
+    inputTokens?: number;
+    cachedInputTokens?: number;
+    hitRate?: number;
   };
 };
 
@@ -210,6 +218,9 @@ const markdownComponents = {
 type AssistantResponseInspectorProps = Readonly<{
   activeModelName?: string;
   messageTokens: number;
+  messageInputTokens: number;
+  messageCachedInputTokens: number;
+  messageCacheHitRate?: number;
   retrievalDebug: ReturnType<typeof collectRetrievalDebug>;
   normalizedSimilarityThreshold: number;
   normalizedTopK: number;
@@ -225,6 +236,9 @@ type AssistantResponseInspectorProps = Readonly<{
 function AssistantResponseInspector({
   activeModelName,
   messageTokens,
+  messageInputTokens,
+  messageCachedInputTokens,
+  messageCacheHitRate,
   retrievalDebug,
   normalizedSimilarityThreshold,
   normalizedTopK,
@@ -245,6 +259,14 @@ function AssistantResponseInspector({
           <Badge variant="secondary">Debug</Badge>
           <span>Model: {activeModelName ?? "unknown"}</span>
           <span>Tokens: {messageTokens}</span>
+          {messageInputTokens > 0 && (
+            <span>
+              Cached prompt: {messageCachedInputTokens}/{messageInputTokens}
+            </span>
+          )}
+          {messageCacheHitRate !== undefined && (
+            <span>Cache hit: {formatSimilarity(messageCacheHitRate)}</span>
+          )}
           <span>Retrieval calls: {retrievalDebug.retrievalCalls}</span>
           <span>
             Avg similarity: {formatSimilarity(retrievalDebug.averageSimilarity)}
@@ -258,7 +280,7 @@ function AssistantResponseInspector({
       </summary>
 
       <div className="mt-3 grid gap-3">
-        <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-6">
           <div className="rounded-md border bg-background p-2">
             <p className="text-muted-foreground">Similarity Threshold</p>
             <p className="font-medium text-foreground">
@@ -268,6 +290,24 @@ function AssistantResponseInspector({
           <div className="rounded-md border bg-background p-2">
             <p className="text-muted-foreground">Top K</p>
             <p className="font-medium text-foreground">{normalizedTopK}</p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Prompt Tokens</p>
+            <p className="font-medium text-foreground">{messageInputTokens}</p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Cached Prompt Tokens</p>
+            <p className="font-medium text-foreground">
+              {messageCachedInputTokens}
+            </p>
+          </div>
+          <div className="rounded-md border bg-background p-2">
+            <p className="text-muted-foreground">Cache Hit Rate</p>
+            <p className="font-medium text-foreground">
+              {messageCacheHitRate === undefined
+                ? "n/a"
+                : formatSimilarity(messageCacheHitRate)}
+            </p>
           </div>
           <div className="rounded-md border bg-background p-2">
             <p className="text-muted-foreground">Retrieved Chunks</p>
@@ -478,6 +518,42 @@ export default function Chat({
     [messages],
   );
 
+  const cacheUsageSummary = useMemo(
+    () =>
+      messages.reduce(
+        (summary, message) => {
+          if (message.role !== "assistant") {
+            return summary;
+          }
+
+          const metadata = message.metadata as MessageMetadata | undefined;
+          const inputTokens =
+            metadata?.cache?.inputTokens ??
+            metadata?.totalUsage?.inputTokens ??
+            0;
+          const cachedInputTokens =
+            metadata?.cache?.cachedInputTokens ??
+            metadata?.totalUsage?.cachedInputTokens ??
+            0;
+
+          return {
+            inputTokens: summary.inputTokens + inputTokens,
+            cachedInputTokens: summary.cachedInputTokens + cachedInputTokens,
+          };
+        },
+        {
+          inputTokens: 0,
+          cachedInputTokens: 0,
+        },
+      ),
+    [messages],
+  );
+
+  const cacheHitRate =
+    cacheUsageSummary.inputTokens > 0
+      ? cacheUsageSummary.cachedInputTokens / cacheUsageSummary.inputTokens
+      : undefined;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -674,6 +750,15 @@ export default function Chat({
                 Threshold {formatSimilarity(normalizedSimilarityThreshold)} •
                 Top K {normalizedTopK}
               </span>
+              {cacheUsageSummary.inputTokens > 0 && (
+                <span>
+                  Prompt cache: {cacheUsageSummary.cachedInputTokens}/
+                  {cacheUsageSummary.inputTokens} tokens
+                  {cacheHitRate === undefined
+                    ? ""
+                    : ` (${formatSimilarity(cacheHitRate)} hit rate)`}
+                </span>
+              )}
               {lastAssistantDebug && (
                 <span>
                   Last response: {lastAssistantDebug.retrievalCalls} retrieval
@@ -719,9 +804,21 @@ export default function Chat({
                 isSubmitting: false,
                 isSubmitted: false,
               } satisfies FeedbackDraft);
-            const messageTokens =
-              (msg.metadata as MessageMetadata | undefined)?.totalUsage
-                ?.totalTokens ?? 0;
+            const messageMetadata = msg.metadata as MessageMetadata | undefined;
+            const messageTokens = messageMetadata?.totalUsage?.totalTokens ?? 0;
+            const messageInputTokens =
+              messageMetadata?.cache?.inputTokens ??
+              messageMetadata?.totalUsage?.inputTokens ??
+              0;
+            const messageCachedInputTokens =
+              messageMetadata?.cache?.cachedInputTokens ??
+              messageMetadata?.totalUsage?.cachedInputTokens ??
+              0;
+            const messageCacheHitRate =
+              messageMetadata?.cache?.hitRate ??
+              (messageInputTokens > 0
+                ? messageCachedInputTokens / messageInputTokens
+                : undefined);
 
             return (msg.parts as ChatPartLike[]).map((part, idx) => {
               if (part.type === "text") {
@@ -740,6 +837,9 @@ export default function Chat({
                       <AssistantResponseInspector
                         activeModelName={activeModel?.name}
                         messageTokens={messageTokens}
+                        messageInputTokens={messageInputTokens}
+                        messageCachedInputTokens={messageCachedInputTokens}
+                        messageCacheHitRate={messageCacheHitRate}
                         retrievalDebug={retrievalDebug}
                         normalizedSimilarityThreshold={
                           normalizedSimilarityThreshold

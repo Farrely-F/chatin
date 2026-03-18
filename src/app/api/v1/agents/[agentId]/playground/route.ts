@@ -80,6 +80,7 @@ export async function POST(
     agentConfig,
     messages,
     agentId,
+    requestUserId: user_id,
     feedbackGuidance: await getRecentAgentFeedbackHints(agentId, user_id, 5),
   });
 
@@ -95,7 +96,18 @@ export async function POST(
     generateMessageId: () => crypto.randomUUID(),
     messageMetadata: ({ part }) => {
       if (part.type === "finish") {
-        return { totalUsage: part.totalUsage };
+        const inputTokens = part.totalUsage.inputTokens ?? 0;
+        const cachedInputTokens = part.totalUsage.cachedInputTokens ?? 0;
+
+        return {
+          totalUsage: part.totalUsage,
+          cache: {
+            inputTokens,
+            cachedInputTokens,
+            hitRate:
+              inputTokens > 0 ? cachedInputTokens / inputTokens : undefined,
+          },
+        };
       }
 
       return undefined;

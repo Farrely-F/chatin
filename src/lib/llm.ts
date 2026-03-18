@@ -6,6 +6,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
+  type JSONValue,
   type LanguageModel,
   type ModelMessage,
   Tool,
@@ -24,6 +25,15 @@ export type FeedbackGuidance = {
   userQuestion: string;
   expectedResponse: string;
   feedbackNote: string | null;
+};
+
+type OpenRouterPromptCacheControl = {
+  type: "ephemeral";
+  ttl?: "1h";
+};
+
+type LlmProviderOptions = {
+  openrouter?: Record<string, JSONValue>;
 };
 
 const openai = createOpenAI({
@@ -45,6 +55,57 @@ const groq = createGroq({
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
+
+function getOpenRouterPromptCacheControl(
+  model: Pick<ModelDetails, "name" | "provider"> | null,
+): OpenRouterPromptCacheControl | undefined {
+  if (model?.provider !== "openrouter") {
+    return undefined;
+  }
+
+  // Anthropic models require explicit cache control for automatic prompt caching.
+  if (!model.name.startsWith("anthropic/")) {
+    return undefined;
+  }
+
+  if (process.env.OPENROUTER_PROMPT_CACHE_TTL === "1h") {
+    return { type: "ephemeral", ttl: "1h" };
+  }
+
+  return { type: "ephemeral" };
+}
+
+function buildLlmProviderOptions({
+  model,
+  requestUserId,
+}: {
+  model: Pick<ModelDetails, "name" | "provider"> | null;
+  requestUserId?: string;
+}): LlmProviderOptions | undefined {
+  if (model?.provider !== "openrouter") {
+    return undefined;
+  }
+
+  const openrouterOptions: Record<string, JSONValue> = {
+    usage: {
+      include: true,
+    },
+  };
+
+  const cacheControl = getOpenRouterPromptCacheControl(model);
+  if (cacheControl) {
+    openrouterOptions.cache_control = cacheControl;
+  }
+
+  const normalizedUserId = requestUserId?.trim();
+  if (normalizedUserId) {
+    openrouterOptions.user = normalizedUserId;
+  }
+
+  return {
+    openrouter: openrouterOptions,
+  };
+}
 
 export function getLLMProvider(
   model: Pick<ModelDetails, "name" | "provider"> | null,
@@ -277,12 +338,14 @@ export function generateStreamResponse({
   messages,
   agentId,
   feedbackGuidance = [],
+  requestUserId,
 }: {
   model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
   messages: UIMessage[];
   agentId: string;
   feedbackGuidance?: FeedbackGuidance[];
+  requestUserId?: string;
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
@@ -290,6 +353,11 @@ export function generateStreamResponse({
 
   const shouldUseRetrievalTools =
     agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
+  const providerOptions = buildLlmProviderOptions({
+    model: agentConfig.model,
+    requestUserId,
+  });
 
   const response = streamText({
     maxRetries: 0,
@@ -307,6 +375,7 @@ export function generateStreamResponse({
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
     toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
+    providerOptions,
 
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
@@ -321,12 +390,14 @@ export function generateTextResponse({
   messages,
   agentId,
   feedbackGuidance = [],
+  requestUserId,
 }: {
   model: LanguageModel;
   agentConfig: AgentWithKnowledgeBase;
   messages: UIMessage[];
   agentId: string;
   feedbackGuidance?: FeedbackGuidance[];
+  requestUserId?: string;
 }) {
   if ("error" in agentConfig) {
     throw new Error(agentConfig.error);
@@ -334,6 +405,11 @@ export function generateTextResponse({
 
   const shouldUseRetrievalTools =
     agentConfig.model.supportsToolUse && agentConfig.knowledgeBases.length > 0;
+
+  const providerOptions = buildLlmProviderOptions({
+    model: agentConfig.model,
+    requestUserId,
+  });
 
   const response = generateText({
     maxRetries: 0,
@@ -351,6 +427,7 @@ export function generateTextResponse({
       ? llmToolsConfig({ agentId, agentConfig })
       : undefined,
     toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
+    providerOptions,
 
     topP: agentConfig.topP || 1,
   });
