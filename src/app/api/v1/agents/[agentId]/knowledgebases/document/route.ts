@@ -6,7 +6,11 @@ import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
 import { supabase } from "@/lib/supabase/client";
 import { splitIntoChunks } from "@/lib/text-chunker";
-import { parsePdfWithAgent } from "@/lib/utility-agent/pdf-parser-agent";
+import {
+  isAgenticParseContextLimitError,
+  isAgenticParseInvalidProviderResponseError,
+  parsePdfWithAgent,
+} from "@/lib/utility-agent/pdf-parser-agent";
 import { cleanText } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
@@ -19,6 +23,96 @@ const formSchema = z.object({
   parseMethod: z.enum(["pdf", "agentic"]).default("pdf"),
   parseModelId: z.uuid().optional(),
 });
+
+type ParseModel = Pick<typeof aiModels.$inferSelect, "name" | "provider">;
+
+function requireParseModel(parseModel: ParseModel | null): ParseModel {
+  if (!parseModel) {
+    throw new Error("Parsing model is required for agentic parse");
+  }
+
+  return parseModel;
+}
+
+async function resolveAgenticParseModel(parseModelId: string) {
+  if (!parseModelId) {
+    return {
+      parseModel: null,
+      errorResponse: NextResponse.json(
+        { status: false, error: "Parsing model is required for agentic parse" },
+        { status: 400 },
+      ),
+    };
+  }
+
+  const selectedModel = await db.query.aiModels.findFirst({
+    where: (model, { eq, and }) =>
+      and(eq(model.id, parseModelId), eq(model.isAvailable, true)),
+    columns: {
+      id: true,
+      name: true,
+      provider: true,
+      supportsObjectGeneration: true,
+    },
+  });
+
+  if (!selectedModel) {
+    return {
+      parseModel: null,
+      errorResponse: NextResponse.json(
+        { status: false, error: "Selected parsing model is unavailable" },
+        { status: 400 },
+      ),
+    };
+  }
+
+  if (!selectedModel.supportsObjectGeneration) {
+    return {
+      parseModel: null,
+      errorResponse: NextResponse.json(
+        {
+          status: false,
+          error: "Selected parsing model does not support object generation",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+
+  return {
+    parseModel: {
+      name: selectedModel.name,
+      provider: selectedModel.provider,
+    } as ParseModel,
+    errorResponse: null,
+  };
+}
+
+function getAgenticParseErrorResponse(error: unknown) {
+  if (isAgenticParseContextLimitError(error)) {
+    return NextResponse.json(
+      {
+        status: false,
+        error:
+          "Agentic parse exceeded the model context limit. Try PDF parse mode, a smaller PDF, or a higher-context model.",
+      },
+      { status: 413 },
+    );
+  }
+
+  if (isAgenticParseInvalidProviderResponseError(error)) {
+    return NextResponse.json(
+      {
+        status: false,
+        error:
+          "Agentic parse failed because the provider returned an invalid response. Try again, switch model/provider, or use PDF parse mode.",
+      },
+      { status: 502 },
+    );
+  }
+
+  return null;
+}
 
 export const POST = async (
   req: NextRequest,
@@ -41,13 +135,6 @@ export const POST = async (
     );
   }
 
-  if (parseMethod === "agentic" && !parseModelId) {
-    return NextResponse.json(
-      { status: false, error: "Parsing model is required for agentic parse" },
-      { status: 400 },
-    );
-  }
-
   // Verify agent exists
   const agent = await db.query.agents.findFirst({
     where: (a, { eq }) => eq(a.id, agentId),
@@ -60,53 +147,17 @@ export const POST = async (
     );
   }
 
-  let parseModel: Pick<
-    typeof aiModels.$inferSelect,
-    "name" | "provider"
-  > | null = null;
+  let parseModel: ParseModel | null = null;
 
   if (parseMethod === "agentic") {
-    const requiredParseModelId = parseModelId;
+    const { parseModel: resolvedParseModel, errorResponse } =
+      await resolveAgenticParseModel(parseModelId ?? "");
 
-    if (!requiredParseModelId) {
-      return NextResponse.json(
-        { status: false, error: "Parsing model is required for agentic parse" },
-        { status: 400 },
-      );
+    if (errorResponse) {
+      return errorResponse;
     }
 
-    const selectedModel = await db.query.aiModels.findFirst({
-      where: (model, { eq, and }) =>
-        and(eq(model.id, requiredParseModelId), eq(model.isAvailable, true)),
-      columns: {
-        id: true,
-        name: true,
-        provider: true,
-        supportsObjectGeneration: true,
-      },
-    });
-
-    if (!selectedModel) {
-      return NextResponse.json(
-        { status: false, error: "Selected parsing model is unavailable" },
-        { status: 400 },
-      );
-    }
-
-    if (!selectedModel.supportsObjectGeneration) {
-      return NextResponse.json(
-        {
-          status: false,
-          error: "Selected parsing model does not support object generation",
-        },
-        { status: 400 },
-      );
-    }
-
-    parseModel = {
-      name: selectedModel.name,
-      provider: selectedModel.provider,
-    };
+    parseModel = resolvedParseModel;
   }
 
   const uuid = randomUUID();
@@ -128,11 +179,7 @@ export const POST = async (
           );
         }
       } else {
-        if (!parseModel) {
-          throw new Error("Parsing model is required for agentic parse");
-        }
-
-        text = await parsePdfWithAgent(buffer, parseModel);
+        text = await parsePdfWithAgent(buffer, requireParseModel(parseModel));
 
         if (!text || text.trim().length === 0) {
           throw new Error("Unable to extract any text from PDF");
@@ -198,6 +245,13 @@ export const POST = async (
       },
     );
   } catch (error) {
+    if (parseMethod === "agentic") {
+      const mappedResponse = getAgenticParseErrorResponse(error);
+      if (mappedResponse) {
+        return mappedResponse;
+      }
+    }
+
     console.error("[KB_UPLOAD_ERROR]", error);
     return NextResponse.json(
       {
