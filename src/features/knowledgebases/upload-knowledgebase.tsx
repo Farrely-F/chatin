@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import SliderControl from "@/components/ui/slider-control";
+import { cn } from "@/lib/utils";
 import { ModelDetails } from "@/service/model";
 import { Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -262,7 +263,11 @@ export default function UploadKnowledgeForm({
         </CardHeader>
 
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div
+            className={cn("grid gap-6 md:grid-cols-2", {
+              "md:grid-cols-1": !file || !previewMode,
+            })}
+          >
             <div>
               <button
                 type="button"
