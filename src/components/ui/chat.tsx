@@ -8,10 +8,13 @@ import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   ArrowLeft,
   CheckCircle2,
+  EllipsisVertical,
+  FileDown,
+  FileUp,
   FlaskConical,
   Send,
   StopCircle,
@@ -37,12 +40,37 @@ import { Badge } from "./badge";
 import { submitPlaygroundFeedbackAction } from "./chat-feedback-actions";
 import { ChatMessage } from "./chat-message";
 import { CodeBlock } from "./code-block";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
 import { Form, FormField } from "./form";
 import { ScrollArea } from "./scroll-area";
 
 const formSchema = z.object({
   message: z.string().trim().min(1),
 });
+
+const importChatPartSchema = z.looseObject({
+  type: z.string(),
+});
+
+const importChatMessageSchema = z.looseObject({
+  id: z.string().optional(),
+  role: z.enum(["system", "user", "assistant"]),
+  parts: z.array(importChatPartSchema),
+  metadata: z.unknown().optional(),
+});
+
+const importConversationSchema = z.union([
+  z.array(importChatMessageSchema),
+  z.looseObject({
+    messages: z.array(importChatMessageSchema),
+  }),
+]);
 
 type MessageMetadata = {
   totalUsage?: {
@@ -88,6 +116,35 @@ type FeedbackPayload = {
   expectedResponse?: string;
   feedbackNote?: string;
 };
+
+function createImportedMessageId(index: number) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `imported-${crypto.randomUUID()}`;
+  }
+
+  return `imported-${Date.now()}-${index}`;
+}
+
+function getImportedMessages(payload: unknown): UIMessage[] {
+  const parsedPayload = importConversationSchema.parse(payload);
+  const messages = Array.isArray(parsedPayload)
+    ? parsedPayload
+    : parsedPayload.messages;
+
+  return messages.map((message, index) => ({
+    ...message,
+    id: message.id?.trim() || createImportedMessageId(index),
+  })) as UIMessage[];
+}
+
+function sanitizeFilenameSegment(value: string) {
+  const normalized = value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
+
+  return normalized || "chat";
+}
 
 function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
   if (!Array.isArray(output)) {
@@ -465,6 +522,7 @@ export default function Chat({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<
     Record<string, FeedbackDraft>
   >({});
@@ -489,7 +547,7 @@ export default function Chat({
     },
   });
 
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
     onError(error) {
       toast.error(error instanceof Error ? error.message : error);
     },
@@ -573,6 +631,81 @@ export default function Chat({
         toast.error(error instanceof Error ? error.message : String(error));
       });
     });
+  };
+
+  const handleExportConversation = () => {
+    if (messages.length === 0) {
+      toast.error("No conversation available to export");
+      return;
+    }
+
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      agentId: agentDetails.id,
+      agentName: agentDetails.name,
+      messages,
+    };
+
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fileDate = new Date().toISOString().slice(0, 10);
+    const fileBaseName = sanitizeFilenameSegment(agentDetails.name);
+
+    link.href = url;
+    link.download = `${fileBaseName}-playground-chat-${fileDate}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    toast.success("Conversation exported as JSON");
+  };
+
+  const openImportConversationPicker = () => {
+    if (status === "streaming") {
+      stop();
+    }
+
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportConversation = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!selectedFile) {
+      return;
+    }
+
+    try {
+      const content = await selectedFile.text();
+      const parsed = JSON.parse(content);
+      const importedMessages = getImportedMessages(parsed);
+
+      if (importedMessages.length === 0) {
+        toast.error("No messages found in the imported file");
+        return;
+      }
+
+      setMessages(importedMessages);
+      setFeedbackDrafts({});
+      toast.success(`Imported ${importedMessages.length} message(s)`);
+    } catch (error) {
+      let message = "Failed to import conversation";
+
+      if (error instanceof z.ZodError) {
+        message = "Invalid conversation format in JSON file";
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
+
+      toast.error(message);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -724,13 +857,48 @@ export default function Chat({
             </Button>
             <h1>{agentDetails.name} Playground</h1>
           </div>
-          <EditAgentDialog
-            models={models}
-            personas={personas}
-            disabled={isPending}
-            agentDetails={agentDetails}
-            userId={userId}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={handleImportConversation}
+            />
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline">
+                  <EllipsisVertical className="size-4" />
+                  Conversation
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    disabled={isPending || messages.length === 0}
+                    onSelect={handleExportConversation}
+                  >
+                    <FileDown className="size-4" />
+                    Export JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={isPending}
+                    onSelect={openImportConversationPicker}
+                  >
+                    <FileUp className="size-4" />
+                    Import JSON
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <EditAgentDialog
+              models={models}
+              personas={personas}
+              disabled={isPending}
+              agentDetails={agentDetails}
+              userId={userId}
+            />
+          </div>
         </div>
       </div>
       <div className="sticky top-[76px] z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b">
