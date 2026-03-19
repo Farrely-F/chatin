@@ -46,85 +46,127 @@ function detectInstructionPatterns(text: string): string[] {
   return detected;
 }
 
+function stripHtmlTags(content: string, warnings: string[]): string {
+  const htmlPattern = /<[^>]*>/g;
+  if (htmlPattern.test(content)) {
+    warnings.push("Removed HTML tags");
+    return content.replace(htmlPattern, "");
+  }
+  return content;
+}
+
+function stripScriptTags(content: string, warnings: string[]): string {
+  const scriptPattern = /<script[^>]*>[\s\S]*?<\/script>/gi;
+  if (scriptPattern.test(content)) {
+    warnings.push("Removed script tags");
+    return content.replace(scriptPattern, "");
+  }
+  return content;
+}
+
+function removeInstructionPatterns(
+  content: string,
+  warnings: string[],
+): string {
+  const detected = detectInstructionPatterns(content);
+  if (detected.length === 0) {
+    return content;
+  }
+
+  warnings.push(`Removed ${detected.length} instruction-following patterns`);
+
+  let result = content;
+  for (const pattern of INSTRUCTION_PATTERNS) {
+    result = result.replace(pattern, "[removed]");
+  }
+  return result;
+}
+
+function escapeDelimiters(content: string, warnings: string[]): string {
+  const delimiterPattern =
+    /\[\[KNOWLEDGE_BASE_CONTENT\]\]|\[\[\/KNOWLEDGE_BASE_CONTENT\]\]/g;
+
+  if (!delimiterPattern.test(content)) {
+    return content;
+  }
+
+  warnings.push("Escaped delimiter markers");
+
+  return content.replace(delimiterPattern, (match) => {
+    if (match === DELIMITER_START) {
+      return "[[ KNOWLEDGE_BASE_CONTENT ]]";
+    }
+    return "[[ /KNOWLEDGE_BASE_CONTENT ]]";
+  });
+}
+
+function removeDangerousTokens(content: string, warnings: string[]): string {
+  let result = content;
+
+  for (const pattern of DANGEROUS_TOKEN_PATTERNS) {
+    if (pattern.test(result)) {
+      warnings.push("Removed dangerous tokens");
+      result = result.replace(pattern, "?");
+    }
+  }
+
+  return result;
+}
+
+function removeNullBytes(content: string): string {
+  return content.replace(/\x00/g, "");
+}
+
+function truncateContent(
+  content: string,
+  maxLength: number,
+  warnings: string[],
+): string {
+  if (content.length <= maxLength) {
+    return content;
+  }
+
+  warnings.push(
+    `Truncated content from ${content.length} to ${maxLength} chars`,
+  );
+  return content.substring(0, maxLength);
+}
+
 export function sanitizeContent(
   content: string,
   options: SanitizeOptions = {},
 ): SanitizeResult {
   const {
     stripHtml = true,
-    removeInstructionPatterns = true,
-    escapeDelimiters = true,
+    removeInstructionPatterns: shouldRemoveInstructions = true,
+    escapeDelimiters: shouldEscapeDelimiters = true,
     maxLength = 50000,
   } = options;
 
   const warnings: string[] = [];
-  let hadToSanitize = false;
   let sanitized = content;
 
   if (stripHtml) {
-    const htmlPattern = /<[^>]*>/g;
-    if (htmlPattern.test(sanitized)) {
-      hadToSanitize = true;
-      warnings.push("Removed HTML tags");
-      sanitized = sanitized.replace(htmlPattern, "");
-    }
-
-    const scriptPattern = /<script[^>]*>[\s\S]*?<\/script>/gi;
-    if (scriptPattern.test(sanitized)) {
-      hadToSanitize = true;
-      warnings.push("Removed script tags");
-      sanitized = sanitized.replace(scriptPattern, "");
-    }
+    sanitized = stripHtmlTags(sanitized, warnings);
+    sanitized = stripScriptTags(sanitized, warnings);
   }
 
-  if (removeInstructionPatterns) {
-    const detected = detectInstructionPatterns(sanitized);
-    if (detected.length > 0) {
-      hadToSanitize = true;
-      warnings.push(
-        `Removed ${detected.length} instruction-following patterns`,
-      );
-      for (const pattern of INSTRUCTION_PATTERNS) {
-        sanitized = sanitized.replace(pattern, "[removed]");
-      }
-    }
+  if (shouldRemoveInstructions) {
+    sanitized = removeInstructionPatterns(sanitized, warnings);
   }
 
-  if (escapeDelimiters) {
-    const delimiterPattern =
-      /\[\[KNOWLEDGE_BASE_CONTENT\]\]|\[\[\/KNOWLEDGE_BASE_CONTENT\]\]/g;
-    if (delimiterPattern.test(sanitized)) {
-      hadToSanitize = true;
-      warnings.push("Escaped delimiter markers");
-      sanitized = sanitized.replace(delimiterPattern, (match) => {
-        if (match === DELIMITER_START) return "[[ KNOWLEDGE_BASE_CONTENT ]]";
-        return "[[ /KNOWLEDGE_BASE_CONTENT ]]";
-      });
-    }
+  if (shouldEscapeDelimiters) {
+    sanitized = escapeDelimiters(sanitized, warnings);
   }
 
-  for (const pattern of DANGEROUS_TOKEN_PATTERNS) {
-    if (pattern.test(sanitized)) {
-      hadToSanitize = true;
-      sanitized = sanitized.replace(pattern, "?");
-    }
-  }
-
-  sanitized = sanitized.replace(/\x00/g, "");
-
-  if (sanitized.length > maxLength) {
-    hadToSanitize = true;
-    warnings.push(
-      `Truncated content from ${sanitized.length} to ${maxLength} chars`,
-    );
-    sanitized = sanitized.substring(0, maxLength);
-  }
-
+  sanitized = removeDangerousTokens(sanitized, warnings);
+  sanitized = removeNullBytes(sanitized);
+  sanitized = truncateContent(sanitized, maxLength, warnings);
   sanitized = sanitized.trim();
 
   return {
     content: sanitized,
-    hadToSanitize,
+    hadToSanitize: warnings.length > 0,
     warnings,
   };
 }

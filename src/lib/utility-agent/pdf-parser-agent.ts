@@ -1,6 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod/v4";
 
+import { sanitizeContent } from "../content-sanitizer";
 import { DEFAULT_EXTRACTION_PROMPT, getLLMProvider } from "../llm";
 
 const AGENTIC_CONTEXT_LIMIT_PATTERN =
@@ -112,7 +113,14 @@ export async function parsePdfWithAgent(
       throw new Error("Failed to parse PDF with agent");
     }
 
-    return object.content.trim();
+    const extractedContent = object.content.trim();
+    const sanitized = sanitizeContent(extractedContent);
+
+    if (sanitized.hadToSanitize) {
+      console.warn("PDF parse content was sanitized:", sanitized.warnings);
+    }
+
+    return sanitized.content;
   } catch (error) {
     if (isAgenticParseContextLimitError(error)) {
       throw new AgenticParseContextLimitError();
