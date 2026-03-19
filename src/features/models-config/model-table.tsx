@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -30,23 +31,79 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ModelDetails } from "@/service/model";
-import { Edit, Search, Trash2 } from "lucide-react";
+import type { ModelDeleteImpact, ModelDetails } from "@/service/model";
+import { Edit, Loader2, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 interface ModelTableProps {
+  isPending: boolean;
   models: ModelDetails[];
   onEdit: (model: ModelDetails) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, replacementModelId?: string) => void;
+  onInspectDelete: (
+    id: string,
+  ) => Promise<ModelDeleteImpact | { error: string }>;
 }
 
-export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
+export function ModelTable({
+  isPending,
+  models,
+  onEdit,
+  onDelete,
+  onInspectDelete,
+}: Readonly<ModelTableProps>) {
   const [searchQuery, setSearchQuery] = useState("");
   const [modelToDelete, setModelToDelete] = useState<ModelDetails | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState<ModelDeleteImpact | null>(
+    null,
+  );
+  const [isInspectingDelete, setIsInspectingDelete] = useState(false);
+  const [replacementModelId, setReplacementModelId] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [availabilityFilter, setAvailabilityFilter] = useState<
     "all" | "available" | "unavailable"
   >("all");
+
+  const closeDeleteDialog = () => {
+    setModelToDelete(null);
+    setDeleteImpact(null);
+    setReplacementModelId("");
+    setIsInspectingDelete(false);
+  };
+
+  const openDeleteDialog = async (model: ModelDetails) => {
+    setModelToDelete(model);
+    setDeleteImpact(null);
+    setReplacementModelId("");
+    setIsInspectingDelete(true);
+
+    try {
+      const impact = await onInspectDelete(model.id);
+
+      if ("error" in impact) {
+        toast.error(impact.error);
+        closeDeleteDialog();
+        return;
+      }
+
+      setDeleteImpact(impact);
+    } catch {
+      toast.error("Cannot process your request");
+      closeDeleteDialog();
+    } finally {
+      setIsInspectingDelete(false);
+    }
+  };
+
+  const connectedAgents = deleteImpact?.connectedAgents || [];
+  const replacementModels = deleteImpact?.replacementModels || [];
+  const requiresReplacement = connectedAgents.length > 0;
+  const canDelete =
+    !!modelToDelete &&
+    !isPending &&
+    !isInspectingDelete &&
+    (!requiresReplacement || !!replacementModelId);
 
   // Get unique providers from models
   const uniqueProviders = Array.from(
@@ -182,7 +239,7 @@ export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">
-                    {formatDate(model.updatedAt!)}
+                    {formatDate(model.updatedAt)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -197,7 +254,9 @@ export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setModelToDelete(model)}
+                        onClick={() => {
+                          void openDeleteDialog(model);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Delete</span>
@@ -213,28 +272,111 @@ export function ModelTable({ models, onEdit, onDelete }: ModelTableProps) {
 
       <AlertDialog
         open={!!modelToDelete}
-        onOpenChange={(open) => !open && setModelToDelete(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteDialog();
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the model. This action cannot be
-              undone.
+              This will permanently delete the model and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {isInspectingDelete ? (
+            <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking connected agents...
+            </div>
+          ) : null}
+
+          {!isInspectingDelete && requiresReplacement ? (
+            <div className="space-y-3">
+              <div className="rounded-md border p-3">
+                <p className="text-sm font-medium">Connected agents</p>
+                <p className="text-sm text-muted-foreground">
+                  Reassign these agents to another available model before
+                  deleting.
+                </p>
+                <ScrollArea className="mt-3 h-36 pr-2">
+                  <div className="flex flex-col gap-2">
+                    {connectedAgents.map((agent) => (
+                      <div
+                        key={agent.id}
+                        className="flex items-center justify-between rounded-md border p-2"
+                      >
+                        <span className="text-sm font-medium">
+                          {agent.name}
+                        </span>
+                        <Badge variant="outline">/{agent.slug}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {replacementModels.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Replacement model</p>
+                  <Select
+                    value={replacementModelId}
+                    onValueChange={setReplacementModelId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a replacement model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Available Models</SelectLabel>
+                        {replacementModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name} ({model.provider})
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-sm text-destructive">
+                  No replacement model is available. Add a new model first.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                if (modelToDelete) {
-                  onDelete(modelToDelete.id!);
-                  setModelToDelete(null);
+              onClick={(event) => {
+                event.preventDefault();
+
+                if (!modelToDelete) {
+                  return;
                 }
+
+                if (requiresReplacement && !replacementModelId) {
+                  toast.error("Please select a replacement model.");
+                  return;
+                }
+
+                onDelete(modelToDelete.id, replacementModelId || undefined);
+                closeDeleteDialog();
               }}
+              disabled={!canDelete}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Delete
+              {isPending ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

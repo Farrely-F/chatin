@@ -7,6 +7,7 @@ import {
   ModelDetails,
   addNewModel,
   deleteModel,
+  getModelDeleteImpact,
   updateModel,
 } from "@/service/model";
 import { Plus } from "lucide-react";
@@ -18,13 +19,12 @@ import { ModelTable } from "./model-table";
 
 // Mock data for demonstration
 
-export function ModelManagement({
-  userId,
-  models,
-}: {
+type ModelManagementProps = Readonly<{
   userId: string;
   models: ModelDetails[];
-}) {
+}>;
+
+export function ModelManagement({ userId, models }: ModelManagementProps) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelDetails | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -73,7 +73,7 @@ export function ModelManagement({
     });
   };
 
-  const handleDeleteModel = (id: string) => {
+  const handleDeleteModelSafely = (id: string, replacementModelId?: string) => {
     startTransition(async () => {
       const res = await withPermission(
         {
@@ -82,6 +82,7 @@ export function ModelManagement({
           userId,
         },
         id,
+        replacementModelId,
       );
 
       if ("error" in res) {
@@ -91,6 +92,17 @@ export function ModelManagement({
 
       toast.success("Model deleted successfully");
     });
+  };
+
+  const handleGetDeleteImpact = async (id: string) => {
+    return withPermission(
+      {
+        action: getModelDeleteImpact,
+        permission: "system.delete",
+        userId,
+      },
+      id,
+    );
   };
 
   const handleEditModel = (model: ModelDetails) => {
@@ -115,9 +127,11 @@ export function ModelManagement({
       </div>
 
       <ModelTable
+        isPending={isPending}
         models={models}
         onEdit={handleEditModel}
-        onDelete={handleDeleteModel}
+        onDelete={handleDeleteModelSafely}
+        onInspectDelete={handleGetDeleteImpact}
       />
 
       <ModelForm
