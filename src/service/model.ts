@@ -1,10 +1,44 @@
 "use server";
 
 import { db } from "@/db";
-import { aiModels } from "@/db/schema";
+import { agents, aiModels } from "@/db/schema";
 import { ModelSchema } from "@/schema/model-schema";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+export type ModelConnectedAgent = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+export type ModelDeleteReplacement = {
+  id: string;
+  name: string;
+  provider: string;
+};
+
+export type ModelDeleteImpact = {
+  connectedAgents: ModelConnectedAgent[];
+  replacementModels: ModelDeleteReplacement[];
+};
+
+const DELETE_MODEL_ERROR_MESSAGES: Record<string, string> = {
+  MODEL_IN_USE:
+    "This model is currently used by one or more agents. Reassign those agents first.",
+  INVALID_REPLACEMENT_MODEL: "Please select a different replacement model.",
+  REPLACEMENT_MODEL_NOT_FOUND: "Replacement model was not found.",
+  REPLACEMENT_MODEL_UNAVAILABLE: "Replacement model must be available.",
+  MODEL_NOT_FOUND: "Model not found.",
+};
+
+function getDeleteModelErrorMessage(error: unknown) {
+  if (error instanceof Error && DELETE_MODEL_ERROR_MESSAGES[error.message]) {
+    return DELETE_MODEL_ERROR_MESSAGES[error.message];
+  }
+
+  return "Cannot process your request";
+}
 
 export async function getAllModels() {
   try {
@@ -39,9 +73,88 @@ export async function addNewModel(data: ModelSchema) {
   }
 }
 
-export async function deleteModel(id: string) {
+export async function getModelDeleteImpact(id: string) {
   try {
-    await db.delete(aiModels).where(eq(aiModels.id, id));
+    const [connectedAgents, replacementModels] = await Promise.all([
+      db
+        .select({
+          id: agents.id,
+          name: agents.name,
+          slug: agents.slug,
+        })
+        .from(agents)
+        .where(eq(agents.modelId, id)),
+      db
+        .select({
+          id: aiModels.id,
+          name: aiModels.name,
+          provider: aiModels.provider,
+        })
+        .from(aiModels)
+        .where(and(ne(aiModels.id, id), eq(aiModels.isAvailable, true))),
+    ]);
+
+    return {
+      connectedAgents,
+      replacementModels,
+    } satisfies ModelDeleteImpact;
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
+export async function deleteModel(id: string, replacementModelId?: string) {
+  try {
+    await db.transaction(async (tx) => {
+      const connectedAgents = await tx
+        .select({ id: agents.id })
+        .from(agents)
+        .where(eq(agents.modelId, id));
+
+      if (connectedAgents.length > 0) {
+        if (!replacementModelId) {
+          throw new Error("MODEL_IN_USE");
+        }
+
+        if (replacementModelId === id) {
+          throw new Error("INVALID_REPLACEMENT_MODEL");
+        }
+
+        const [replacementModel] = await tx
+          .select({
+            id: aiModels.id,
+            isAvailable: aiModels.isAvailable,
+          })
+          .from(aiModels)
+          .where(eq(aiModels.id, replacementModelId))
+          .limit(1);
+
+        if (!replacementModel) {
+          throw new Error("REPLACEMENT_MODEL_NOT_FOUND");
+        }
+
+        if (!replacementModel.isAvailable) {
+          throw new Error("REPLACEMENT_MODEL_UNAVAILABLE");
+        }
+
+        await tx
+          .update(agents)
+          .set({ modelId: replacementModelId })
+          .where(eq(agents.modelId, id));
+      }
+
+      const deleted = await tx
+        .delete(aiModels)
+        .where(eq(aiModels.id, id))
+        .returning({ id: aiModels.id });
+
+      if (deleted.length === 0) {
+        throw new Error("MODEL_NOT_FOUND");
+      }
+    });
 
     revalidatePath("/dashboard/model-management");
 
@@ -51,7 +164,7 @@ export async function deleteModel(id: string) {
   } catch (error) {
     console.error(error);
     return {
-      error: "Cannot process your request",
+      error: getDeleteModelErrorMessage(error),
     };
   }
 }

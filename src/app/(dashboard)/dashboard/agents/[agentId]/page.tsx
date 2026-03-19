@@ -15,6 +15,7 @@ import {
 import { VerticalSeparator } from "@/components/ui/separator";
 import AgentDetailView from "@/features/agents/agent-details";
 import { getCurrentUser } from "@/lib/auth/auth";
+import { getAgentFeedbackList } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { getAllModels } from "@/service/model";
 import { getAllPersonas } from "@/service/personas";
@@ -61,7 +62,7 @@ function agentConfig(provider: string) {
 export default async function AgentDetailPage({
   params,
 }: {
-  params: Promise<{ agentId: string }>;
+  readonly params: Promise<{ agentId: string }>;
 }) {
   const { agentId } = await params;
   const user = await getCurrentUser();
@@ -70,13 +71,27 @@ export default async function AgentDetailPage({
     return;
   }
 
-  const agentDetails = await getAgentWithKnowledgeBase(agentId, user?.id || "");
-  const personas = await getAllPersonas(user?.id || "");
-  const models = await getAllModels();
+  const [agentDetails, personas, models, feedbackRows] = await Promise.all([
+    getAgentWithKnowledgeBase(agentId, user?.id || ""),
+    getAllPersonas(user?.id || ""),
+    getAllModels(),
+    getAgentFeedbackList(agentId, user?.id || ""),
+  ]);
 
   if ("error" in agentDetails) {
     notFound();
   }
+
+  const agentFeedbacks = feedbackRows.map((item) => ({
+    id: item.id,
+    assistantMessageId: item.assistantMessageId,
+    isHelpful: item.isHelpful,
+    userQuestion: item.userQuestion,
+    agentResponse: item.agentResponse,
+    expectedResponse: item.expectedResponse,
+    feedbackNote: item.feedbackNote,
+    createdAt: item.createdAt?.toISOString() ?? null,
+  }));
 
   return (
     <PageLayout>
@@ -139,6 +154,7 @@ export default async function AgentDetailPage({
           userId={user?.id || ""}
           agentKnowledgeBases={agentDetails.knowledgeBases}
           personas={personas}
+          agentFeedbacks={agentFeedbacks}
         />
       </PageLayoutContent>
     </PageLayout>

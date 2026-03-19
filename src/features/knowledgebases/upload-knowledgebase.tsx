@@ -9,17 +9,28 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import SliderControl from "@/components/ui/slider-control";
+import { cn } from "@/lib/utils";
+import { ModelDetails } from "@/service/model";
 import { Eye, FileText, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 type Props = {
   userId: string;
   agentId: string;
+  models: ModelDetails[];
 };
 
 // Maximum file size, CONSIDER USING HIGHER PROB 10mb
@@ -35,14 +46,40 @@ const fileSchema = z
     message: "File size must be less than 10MB",
   });
 
-export default function UploadKnowledgeForm({ userId, agentId }: Props) {
+export default function UploadKnowledgeForm({
+  userId,
+  agentId,
+  models,
+}: Readonly<Props>) {
   const router = useRouter();
-  const [chunkSize, setChunkSize] = useState(100);
+  const [chunkSize, setChunkSize] = useState(500);
   const [file, setFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [parseMethod, setParseMethod] = useState<"pdf" | "agentic">("pdf");
+  const [parseModelId, setParseModelId] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const availableAgenticModels = models.filter(
+    (model) => model.isAvailable && model.supportsObjectGeneration,
+  );
+
+  useEffect(() => {
+    if (availableAgenticModels.length === 0) {
+      setParseModelId("");
+      return;
+    }
+
+    const modelExists = availableAgenticModels.some(
+      (model) => model.id === parseModelId,
+    );
+
+    if (!modelExists) {
+      setParseModelId(availableAgenticModels[0].id);
+    }
+  }, [availableAgenticModels, parseModelId]);
 
   useEffect(() => {
     return () => {
@@ -55,7 +92,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   const validateFile = (selectedFile: File) => {
     const result = fileSchema.safeParse(selectedFile);
     if (!result.success) {
-      const errorMessage = result.error.errors[0]?.message || "Invalid file";
+      const errorMessage = result.error.issues[0]?.message || "Invalid file";
       setError(errorMessage);
       toast.error(errorMessage);
       return false;
@@ -68,8 +105,12 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
 
     if (selectedFile) {
       if (!validateFile(selectedFile)) {
+        if (pdfUrl) {
+          URL.revokeObjectURL(pdfUrl);
+        }
         setFile(null);
         setPdfUrl(null);
+        setPreviewMode(false);
         return;
       }
 
@@ -82,13 +123,15 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
       setFile(selectedFile);
       setPdfUrl(fileObjectUrl);
       setError(null);
+      setPreviewMode(true);
     } else {
       setFile(null);
       setPdfUrl(null);
+      setPreviewMode(false);
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0] || null;
 
@@ -106,11 +149,20 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
       setFile(droppedFile);
       setPdfUrl(fileObjectUrl);
       setError(null);
+      setPreviewMode(true);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
+  };
+
+  const openFilePicker = () => {
+    if (fileInputRef.current) {
+      // Allow re-selecting the same file by clearing previous input value first.
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
   };
 
   const handleUpload = async () => {
@@ -119,10 +171,20 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
       return;
     }
 
+    if (parseMethod === "agentic" && !parseModelId) {
+      toast.error("Please select an agentic parsing model");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("userId", userId);
     formData.append("chunkSize", chunkSize.toString());
+    formData.append("parseMethod", parseMethod);
+
+    if (parseMethod === "agentic") {
+      formData.append("parseModelId", parseModelId);
+    }
 
     setIsUploading(true);
 
@@ -153,6 +215,9 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
         setPdfUrl(null);
       }
       setPreviewMode(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message);
@@ -167,7 +232,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
   };
 
   const togglePreviewMode = () => {
-    setPreviewMode(!previewMode);
+    setPreviewMode((prev) => !prev);
   };
 
   const clearSelection = () => {
@@ -176,7 +241,11 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
     }
     setFile(null);
     setPdfUrl(null);
+    setPreviewMode(false);
     setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -194,18 +263,24 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
         </CardHeader>
 
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div
+            className={cn("grid gap-6 md:grid-cols-2", {
+              "md:grid-cols-1": !file || !previewMode,
+            })}
+          >
             <div>
-              <div
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
+              <button
+                type="button"
+                className={`w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
                   file ? "border-primary" : "border-border"
                 }`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                onClick={() => document.getElementById("pdf-upload")?.click()}
+                onClick={openFilePicker}
               >
                 <input
                   id="pdf-upload"
+                  ref={fileInputRef}
                   type="file"
                   accept="application/pdf"
                   onChange={handleFileChange}
@@ -217,36 +292,15 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="font-medium mb-1 truncate @max-xs:w-[200px]">
+                    <p
+                      className="mb-1 w-full max-w-full break-all px-2 text-center font-medium leading-snug"
+                      title={file.name}
+                    >
                       {file.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePreviewMode();
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        {previewMode ? "Hide Preview" : "Preview"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearSelection();
-                        }}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Clear
-                      </Button>
-                    </div>
                   </div>
                 ) : (
                   <>
@@ -259,14 +313,92 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
                     </p>
                   </>
                 )}
-              </div>
+              </button>
+
+              {file && (
+                <div className="my-3 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={togglePreviewMode}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    {previewMode ? "Hide Preview" : "Preview"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={clearSelection}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear
+                  </Button>
+                </div>
+              )}
+
+              {error && (
+                <p className="mt-2 text-sm text-destructive">{error}</p>
+              )}
+
+              <Separator className="my-6" />
 
               <div className="mt-2 space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">PDF Parse Method</p>
+                  <Select
+                    value={parseMethod}
+                    onValueChange={(value: "pdf" | "agentic") =>
+                      setParseMethod(value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select parse method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pdf">PDF Parse</SelectItem>
+                      <SelectItem value="agentic">Agentic Parse</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    PDF Parse uses standard extraction. Agentic Parse uses an
+                    LLM for complex layouts.
+                  </p>
+                </div>
+
+                {parseMethod === "agentic" && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Agentic Parse Model</p>
+                    <Select
+                      value={parseModelId}
+                      onValueChange={setParseModelId}
+                      disabled={availableAgenticModels.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAgenticModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.provider} / {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {availableAgenticModels.length === 0 && (
+                      <p className="text-xs text-destructive">
+                        No available models support object generation.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <SliderControl
                   label="Chunk Size"
-                  minValue={100}
-                  maxValue={1000}
-                  step={10}
+                  minValue={300}
+                  maxValue={1500}
+                  step={50}
                   defaultValue={[chunkSize]}
                   value={[chunkSize]}
                   onChange={(value) => setChunkSize(value[0])}
@@ -294,9 +426,7 @@ export default function UploadKnowledgeForm({ userId, agentId }: Props) {
               </div>
             </div>
 
-            <div
-              className={`${previewMode && pdfUrl ? "block" : "hidden"} md:block`}
-            >
+            <div className={previewMode && pdfUrl ? "block" : "hidden"}>
               <div className="rounded-lg border overflow-hidden h-[400px] bg-muted/30">
                 {pdfUrl ? (
                   <iframe

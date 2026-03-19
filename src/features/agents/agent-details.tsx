@@ -2,14 +2,21 @@
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AgentFeedbackClientItem } from "@/features/agents/agent-feedback-actions";
 import { AgentDetails } from "@/service/agents";
 import { KnowledgeBase } from "@/service/knowledgebases";
 import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
-import { EditIcon, FlaskConical, LucideBookCopy } from "lucide-react";
+import {
+  EditIcon,
+  FlaskConical,
+  LucideBookCopy,
+  MessageSquareWarning,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import AgentFeedbackManagement from "./agent-feedback-management";
 import AgentKnowledgebases from "./agent-knowledgebases";
 import DeployAgent from "./deploy-agent";
 import EditAgenConfig from "./edit-agent";
@@ -25,20 +32,27 @@ const agentMenu = [
     label: "Training Data",
     icon: LucideBookCopy,
   },
+  {
+    id: "response-feedback",
+    label: "Response Feedback",
+    icon: MessageSquareWarning,
+  },
 ];
 
 export default function AgentDetailView({
   agentDetails,
   models,
   agentKnowledgeBases,
+  agentFeedbacks,
   personas,
   userId,
 }: {
-  agentDetails: AgentDetails;
-  models: ModelDetails[];
-  agentKnowledgeBases: KnowledgeBase[];
-  personas: PersonaDetails[];
-  userId: string;
+  readonly agentDetails: AgentDetails;
+  readonly models: ModelDetails[];
+  readonly agentKnowledgeBases: KnowledgeBase[];
+  readonly agentFeedbacks: AgentFeedbackClientItem[];
+  readonly personas: PersonaDetails[];
+  readonly userId: string;
 }) {
   const [selectedMenu, setSelectedMenu] = useState(agentMenu[0].id);
 
@@ -79,18 +93,28 @@ export default function AgentDetailView({
         </div>
       </ScrollArea>
       <div className="bg-gray-100 sm:col-span-6 rounded-lg p-4 overflow-y-auto">
-        {selectedMenu === "agent-details" ? (
+        {selectedMenu === "agent-details" && (
           <EditAgenConfig
             models={models}
             agentDetails={agentDetails}
             userId={userId}
             personas={personas}
           />
-        ) : (
+        )}
+
+        {selectedMenu === "training-data" && (
           <AgentKnowledgebases
             agentKnowledgeBases={agentKnowledgeBases}
             agentDetails={agentDetails}
+            models={models}
             userId={userId}
+          />
+        )}
+
+        {selectedMenu === "response-feedback" && (
+          <AgentFeedbackManagement
+            agentId={agentDetails.id}
+            initialFeedbacks={agentFeedbacks}
           />
         )}
       </div>

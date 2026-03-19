@@ -52,7 +52,12 @@ export default function DeleteKnowledgeBase({
   return (
     <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
       <AlertDialogTrigger asChild>
-        <Button size={"icon"} variant={"destructive"}>
+        <Button
+          size={"icon"}
+          variant={"destructive"}
+          disabled={isPending}
+          onClick={(e) => e.stopPropagation()}
+        >
           <Trash />
         </Button>
       </AlertDialogTrigger>
