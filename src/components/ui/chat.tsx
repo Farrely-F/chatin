@@ -92,6 +92,8 @@ type RetrievedChunk = {
   similarity: number;
   hybridScore?: number;
   bm25Score?: number;
+  expansionTerms?: string[];
+  usedQueryExpansion?: boolean;
 };
 
 type ChatPartLike = {
@@ -179,6 +181,12 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
         ...(candidate.bm25Score !== undefined && {
           bm25Score: candidate.bm25Score,
         }),
+        ...(candidate.expansionTerms !== undefined && {
+          expansionTerms: candidate.expansionTerms,
+        }),
+        ...(candidate.usedQueryExpansion !== undefined && {
+          usedQueryExpansion: candidate.usedQueryExpansion,
+        }),
       } as RetrievedChunk;
     })
     .filter((chunk): chunk is RetrievedChunk => chunk !== null)
@@ -254,6 +262,8 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
     topHybridScore:
       retrievedChunks[0]?.hybridScore ?? retrievedChunks[0]?.similarity ?? 0,
     useHybridScores,
+    expansionTerms: retrievedChunks[0]?.expansionTerms,
+    usedQueryExpansion: retrievedChunks[0]?.usedQueryExpansion ?? false,
   };
 }
 
@@ -377,6 +387,15 @@ function AssistantResponseInspector({
           {retrievalDebug.retrievalCalls > 0 && (
             <span className={cn("font-medium", confidence.tone)}>
               Confidence: {confidence.label}
+            </span>
+          )}
+          {retrievalDebug.usedQueryExpansion && (
+            <span className="text-emerald-600/70">
+              QE:{" "}
+              {retrievalDebug.expansionTerms &&
+              retrievalDebug.expansionTerms.length > 0
+                ? `+${retrievalDebug.expansionTerms.join(", ")}`
+                : "no terms"}
             </span>
           )}
         </div>

@@ -9,6 +9,11 @@ import {
   createBm25Index,
   normalizeScores,
 } from "./bm25";
+import {
+  type ExpansionResult,
+  blendQueryEmbeddings,
+  expandQuery,
+} from "./query-expansion";
 import { cleanText } from "./utils";
 
 type SimilaritySearch = {
@@ -22,6 +27,8 @@ type HybridSearchOptions = SimilaritySearch & {
   vectorWeight?: number;
   bm25Weight?: number;
   enableHybrid?: boolean;
+  enableQueryExpansion?: boolean;
+  queryExpansionWeight?: number;
 };
 
 type SearchResult = {
@@ -30,10 +37,13 @@ type SearchResult = {
   similarity: number;
   bm25Score?: number;
   hybridScore?: number;
+  expansion?: ExpansionResult;
+  usedQueryExpansion?: boolean;
 };
 
 const DEFAULT_VECTOR_WEIGHT = 0.6;
 const DEFAULT_BM25_WEIGHT = 0.4;
+const DEFAULT_EXPANSION_WEIGHT = 0.3;
 
 export const searchSimilarChunks = async ({
   query,
@@ -151,11 +161,37 @@ export async function searchSimilarChunksHybrid({
   vectorWeight = DEFAULT_VECTOR_WEIGHT,
   bm25Weight = DEFAULT_BM25_WEIGHT,
   enableHybrid = true,
+  enableQueryExpansion = false,
+  queryExpansionWeight = DEFAULT_EXPANSION_WEIGHT,
 }: HybridSearchOptions): Promise<SearchResult[]> {
   const normalizedQuery = cleanText(query);
   const normalizedTopK = Math.max(1, Math.floor(topK));
 
-  const queryEmbedding = await generateEmbeddings(normalizedQuery);
+  let expansion: ExpansionResult | undefined;
+  let usedQueryExpansion = false;
+  let queryEmbedding = await generateEmbeddings(normalizedQuery);
+
+  if (enableQueryExpansion) {
+    const expansionResult = await expandQuery(normalizedQuery, agentId, {
+      enableExpansion: true,
+      initialTopK: 10,
+      expansionTerms: 5,
+    });
+
+    usedQueryExpansion = true;
+
+    if (expansionResult.addedTerms.length > 0) {
+      const expandedEmbedding = await generateEmbeddings(
+        cleanText(expansionResult.expandedQuery),
+      );
+      queryEmbedding = blendQueryEmbeddings(
+        queryEmbedding,
+        expandedEmbedding,
+        queryExpansionWeight,
+      );
+      expansion = expansionResult;
+    }
+  }
 
   const similarity = sql<number>`1 - (${cosineDistance(
     chunkEmbeddings.embeddingVector,
@@ -174,7 +210,11 @@ export async function searchSimilarChunksHybrid({
     .limit(normalizedTopK * 3);
 
   if (!enableHybrid) {
-    return vectorResults.slice(0, normalizedTopK);
+    const results = vectorResults.slice(0, normalizedTopK);
+    if (expansion) {
+      return results.map((r) => ({ ...r, expansion }));
+    }
+    return results;
   }
 
   const allChunks = await fetchAllChunksForAgent(agentId);
@@ -182,8 +222,6 @@ export async function searchSimilarChunksHybrid({
   if (allChunks.length === 0) {
     return [];
   }
-
-  //TODO: The current in-memory BM25 rebuilds the index on every search. For large knowledge bases, consider caching the BM25 index or pre-computing term frequencies at ingest time.
 
   const bm25Index = createBm25Index(allChunks);
   const bm25Results = bm25Index.search(normalizedQuery, normalizedTopK * 3);
@@ -196,7 +234,17 @@ export async function searchSimilarChunksHybrid({
     bm25Weight,
   );
 
-  return mergedResults.slice(0, normalizedTopK);
+  const finalResults = mergedResults.slice(0, normalizedTopK);
+
+  if (expansion) {
+    return finalResults.map((r) => ({
+      ...r,
+      expansion,
+      usedQueryExpansion,
+    }));
+  }
+
+  return finalResults.map((r) => ({ ...r, usedQueryExpansion }));
 }
 
 export type { SearchResult, HybridSearchOptions };

@@ -469,6 +469,8 @@ function llmToolsConfig({
           enableHybrid: true,
           vectorWeight: 0.6,
           bm25Weight: 0.4,
+          enableQueryExpansion: true,
+          queryExpansionWeight: 0.3,
         });
 
         return results.map((r) => ({
@@ -477,6 +479,8 @@ function llmToolsConfig({
           similarity: r.hybridScore ?? r.similarity,
           hybridScore: r.hybridScore,
           bm25Score: r.bm25Score,
+          expansionTerms: r.expansion?.addedTerms,
+          usedQueryExpansion: r.usedQueryExpansion,
         }));
       },
     }),
