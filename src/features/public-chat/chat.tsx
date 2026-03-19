@@ -12,7 +12,14 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { StopCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useTransition } from "react";
+import {
+  Children,
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useTransition,
+} from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
@@ -29,7 +36,36 @@ const formSchema = z.object({
   message: z.string().trim().min(1),
 });
 
-export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
+function getCodeText(children: ReactNode) {
+  return Children.toArray(children)
+    .map((child) =>
+      typeof child === "string" || typeof child === "number"
+        ? String(child)
+        : "",
+    )
+    .join("");
+}
+
+const markdownComponents = {
+  code({ className, children, ...props }: ComponentProps<"code">) {
+    const match = /language-(\w+)/.exec(className || "");
+    const codeText = getCodeText(children);
+
+    return match ? (
+      <CodeBlock language={match[1]} value={codeText.replace(/\n$/, "")} />
+    ) : (
+      <pre className="w-full overflow-x-auto">
+        <code className="px-1.5 py-0.5 rounded bg-muted text-sm" {...props}>
+          {children}
+        </code>
+      </pre>
+    );
+  },
+};
+
+export default function Chat({
+  agentDetails,
+}: Readonly<{ agentDetails: AgentDetails }>) {
   const [, startTransition] = useTransition();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageHistoryRef = useRef<UIMessage[]>([]);
@@ -138,30 +174,42 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
                       </div>
                     }
                   >
-                    <ReactMarkdown
-                      components={{
-                        code({ className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || "");
-                          return match ? (
-                            <CodeBlock
-                              language={match[1]}
-                              value={String(children).replace(/\n$/, "")}
-                            />
-                          ) : (
-                            <pre className="w-full overflow-x-auto">
-                              <code
-                                className="px-1.5 py-0.5 rounded bg-muted text-sm"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            </pre>
-                          );
-                        },
-                      }}
-                    >
+                    <ReactMarkdown components={markdownComponents}>
                       {part.text}
                     </ReactMarkdown>
+                  </ChatMessage>
+                );
+              }
+
+              if (part.type === "reasoning") {
+                if (part.state !== "streaming") {
+                  return null;
+                }
+
+                return (
+                  <ChatMessage
+                    agentName={agentDetails.name}
+                    className="group"
+                    isUser={false}
+                    key={`${msg.id}-${idx}`}
+                  >
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs text-muted-foreground">
+                      <span className="relative flex size-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/50" />
+                        <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <span>Thinking</span>
+                        <span
+                          className="inline-flex gap-0.5"
+                          aria-hidden="true"
+                        >
+                          <span className="size-1 rounded-full bg-current animate-bounce [animation-delay:0ms]" />
+                          <span className="size-1 rounded-full bg-current animate-bounce [animation-delay:150ms]" />
+                          <span className="size-1 rounded-full bg-current animate-bounce [animation-delay:300ms]" />
+                        </span>
+                      </div>
+                    </div>
                   </ChatMessage>
                 );
               }
@@ -172,7 +220,8 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
 
               const hasTextContent = msg.parts.some(
                 (msgPart) =>
-                  msgPart.type === "text" && msgPart.text.trim().length > 0,
+                  (msgPart.type === "text" || msgPart.type === "reasoning") &&
+                  msgPart.text.trim().length > 0,
               );
 
               if (hasTextContent) {
@@ -233,7 +282,7 @@ export default function Chat({ agentDetails }: { agentDetails: AgentDetails }) {
                     type={status === "streaming" ? "button" : "submit"}
                     variant="gradient"
                     className="rounded-full h-8"
-                    onClick={() => (status !== "ready" ? stop() : null)}
+                    onClick={() => (status === "ready" ? null : stop())}
                   >
                     {status === "streaming" ? (
                       <>

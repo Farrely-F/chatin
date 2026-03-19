@@ -249,7 +249,9 @@ function extractTextFromParts(parts: ChatPartLike[]) {
 
 function hasTextContent(parts: ChatPartLike[]) {
   return parts.some(
-    (part) => part.type === "text" && (part.text?.trim().length ?? 0) > 0,
+    (part) =>
+      (part.type === "text" || part.type === "reasoning") &&
+      (part.text?.trim().length ?? 0) > 0,
   );
 }
 
@@ -1039,6 +1041,39 @@ export default function Chat({
                         }
                       />
                     )}
+                  </ChatMessage>
+                );
+              }
+
+              if (part.type === "reasoning") {
+                const reasoningText = part.text?.trim() || "";
+
+                if (!reasoningText) {
+                  return null;
+                }
+
+                return (
+                  <ChatMessage
+                    agentName={agentDetails.name}
+                    className="group"
+                    isUser={false}
+                    key={`${msg.id}-${idx}`}
+                  >
+                    <details
+                      className="rounded-xl border border-dashed bg-muted/40 px-3 py-2"
+                      open={part.state === "streaming"}
+                    >
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                        {part.state === "streaming"
+                          ? "Thinking..."
+                          : "Thinking"}
+                      </summary>
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        <ReactMarkdown components={markdownComponents}>
+                          {reasoningText}
+                        </ReactMarkdown>
+                      </div>
+                    </details>
                   </ChatMessage>
                 );
               }
