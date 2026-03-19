@@ -471,16 +471,20 @@ function llmToolsConfig({
           bm25Weight: 0.4,
           enableQueryExpansion: true,
           queryExpansionWeight: 0.3,
+          enableReranking: true,
+          rerankWeight: 0.4,
         });
 
         return results.map((r) => ({
           id: r.id,
           content: r.content,
-          similarity: r.hybridScore ?? r.similarity,
+          similarity: r.rerankScore ?? r.hybridScore ?? r.similarity,
           hybridScore: r.hybridScore,
           bm25Score: r.bm25Score,
+          rerankScore: r.rerankScore,
           expansionTerms: r.expansion?.addedTerms,
           usedQueryExpansion: r.usedQueryExpansion,
+          usedReranking: r.usedReranking,
         }));
       },
     }),

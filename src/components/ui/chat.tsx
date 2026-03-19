@@ -96,8 +96,10 @@ type RetrievedChunk = {
   similarity: number;
   hybridScore?: number;
   bm25Score?: number;
+  rerankScore?: number;
   expansionTerms?: string[];
   usedQueryExpansion?: boolean;
+  usedReranking?: boolean;
 };
 
 type ChatPartLike = {
@@ -185,11 +187,17 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
         ...(candidate.bm25Score !== undefined && {
           bm25Score: candidate.bm25Score,
         }),
+        ...(candidate.rerankScore !== undefined && {
+          rerankScore: candidate.rerankScore,
+        }),
         ...(candidate.expansionTerms !== undefined && {
           expansionTerms: candidate.expansionTerms,
         }),
         ...(candidate.usedQueryExpansion !== undefined && {
           usedQueryExpansion: candidate.usedQueryExpansion,
+        }),
+        ...(candidate.usedReranking !== undefined && {
+          usedReranking: candidate.usedReranking,
         }),
       } as RetrievedChunk;
     })
@@ -233,13 +241,17 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
         .map((chunk) => [chunk.id, chunk]),
     ).values(),
   ).sort((a, b) => {
-    const scoreA = a.hybridScore ?? a.similarity;
-    const scoreB = b.hybridScore ?? b.similarity;
+    const scoreA = a.rerankScore ?? a.hybridScore ?? a.similarity;
+    const scoreB = b.rerankScore ?? b.hybridScore ?? b.similarity;
     return scoreB - scoreA;
   });
 
   const useHybridScores = retrievedChunks.some(
     (c) => c.hybridScore !== undefined,
+  );
+
+  const useReranking = retrievedChunks.some(
+    (c) => c.usedReranking !== undefined,
   );
 
   const averageSimilarity =
@@ -256,16 +268,27 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
           0,
         ) / retrievedChunks.length;
 
+  const averageRerankScore =
+    retrievedChunks.length === 0 || !useReranking
+      ? undefined
+      : retrievedChunks.reduce(
+          (sum, chunk) => sum + (chunk.rerankScore ?? 0),
+          0,
+        ) / retrievedChunks.length;
+
   return {
     retrievalCalls: retrievalParts.length,
     retrievalErrors,
     retrievedChunks,
     averageSimilarity,
     averageHybridScore,
+    averageRerankScore,
     topSimilarity: retrievedChunks[0]?.similarity ?? 0,
     topHybridScore:
       retrievedChunks[0]?.hybridScore ?? retrievedChunks[0]?.similarity ?? 0,
+    topRerankScore: retrievedChunks[0]?.rerankScore,
     useHybridScores,
+    useReranking,
     expansionTerms: retrievedChunks[0]?.expansionTerms,
     usedQueryExpansion: retrievedChunks[0]?.usedQueryExpansion ?? false,
   };
@@ -355,9 +378,11 @@ function AssistantResponseInspector({
   onFeedbackNoteChange,
   onSubmitCorrection,
 }: AssistantResponseInspectorProps) {
-  const scoreForConfidence = retrievalDebug.useHybridScores
-    ? (retrievalDebug.averageHybridScore ?? retrievalDebug.averageSimilarity)
-    : retrievalDebug.averageSimilarity;
+  const scoreForConfidence = retrievalDebug.useReranking
+    ? (retrievalDebug.averageRerankScore ?? retrievalDebug.averageSimilarity)
+    : retrievalDebug.useHybridScores
+      ? (retrievalDebug.averageHybridScore ?? retrievalDebug.averageSimilarity)
+      : retrievalDebug.averageSimilarity;
   const confidence = getSimilarityConfidence(scoreForConfidence ?? 0);
 
   return (
@@ -376,7 +401,18 @@ function AssistantResponseInspector({
             <span>Cache hit: {formatSimilarity(messageCacheHitRate)}</span>
           )}
           <span>Retrieval calls: {retrievalDebug.retrievalCalls}</span>
-          {retrievalDebug.useHybridScores ? (
+          {retrievalDebug.useReranking ? (
+            <>
+              <span>
+                Avg rerank:{" "}
+                {formatSimilarity(retrievalDebug.averageRerankScore ?? 0)}
+              </span>
+              <span className="text-muted-foreground/70">
+                (hybrid:{" "}
+                {formatSimilarity(retrievalDebug.averageHybridScore ?? 0)})
+              </span>
+            </>
+          ) : retrievalDebug.useHybridScores ? (
             <>
               <span>
                 Avg hybrid:{" "}
@@ -405,6 +441,9 @@ function AssistantResponseInspector({
                 ? `+${retrievalDebug.expansionTerms.join(", ")}`
                 : "no terms"}
             </span>
+          )}
+          {retrievalDebug.useReranking && (
+            <span className="text-amber-600/70">RERANK</span>
           )}
         </div>
       </summary>
@@ -445,7 +484,22 @@ function AssistantResponseInspector({
               {retrievalDebug.retrievedChunks.length}
             </p>
           </div>
-          {retrievalDebug.useHybridScores ? (
+          {retrievalDebug.useReranking ? (
+            <>
+              <div className="rounded-md border bg-background p-2">
+                <p className="text-muted-foreground">Top Rerank</p>
+                <p className="font-medium text-foreground">
+                  {formatSimilarity(retrievalDebug.topRerankScore ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-md border bg-background p-2">
+                <p className="text-muted-foreground">Top Hybrid</p>
+                <p className="font-medium text-foreground">
+                  {formatSimilarity(retrievalDebug.topHybridScore)}
+                </p>
+              </div>
+            </>
+          ) : retrievalDebug.useHybridScores ? (
             <>
               <div className="rounded-md border bg-background p-2">
                 <p className="text-muted-foreground">Top Hybrid</p>

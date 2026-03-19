@@ -14,6 +14,7 @@ import {
   blendQueryEmbeddings,
   expandQuery,
 } from "./query-expansion";
+import { rerankResults } from "./reranker";
 import { cleanText } from "./utils";
 
 type SimilaritySearch = {
@@ -29,6 +30,8 @@ type HybridSearchOptions = SimilaritySearch & {
   enableHybrid?: boolean;
   enableQueryExpansion?: boolean;
   queryExpansionWeight?: number;
+  enableReranking?: boolean;
+  rerankWeight?: number;
 };
 
 type SearchResult = {
@@ -37,8 +40,10 @@ type SearchResult = {
   similarity: number;
   bm25Score?: number;
   hybridScore?: number;
+  rerankScore?: number;
   expansion?: ExpansionResult;
   usedQueryExpansion?: boolean;
+  usedReranking?: boolean;
 };
 
 const DEFAULT_VECTOR_WEIGHT = 0.6;
@@ -163,6 +168,8 @@ export async function searchSimilarChunksHybrid({
   enableHybrid = true,
   enableQueryExpansion = false,
   queryExpansionWeight = DEFAULT_EXPANSION_WEIGHT,
+  enableReranking = false,
+  rerankWeight = 0.4,
 }: HybridSearchOptions): Promise<SearchResult[]> {
   const normalizedQuery = cleanText(query);
   const normalizedTopK = Math.max(1, Math.floor(topK));
@@ -234,17 +241,37 @@ export async function searchSimilarChunksHybrid({
     bm25Weight,
   );
 
-  const finalResults = mergedResults.slice(0, normalizedTopK);
+  let finalResults = mergedResults.slice(0, normalizedTopK);
+  let usedReranking = false;
+
+  if (enableReranking && finalResults.length > 0) {
+    const reranked = await rerankResults(normalizedQuery, finalResults, {
+      enableReranking: true,
+      rerankTopK: normalizedTopK,
+      rerankWeight: rerankWeight ?? 0.4,
+    });
+
+    finalResults = finalResults.map((r, idx) => ({
+      ...r,
+      rerankScore: reranked[idx]?.rerankScore ?? r.similarity,
+    }));
+    usedReranking = true;
+  }
 
   if (expansion) {
     return finalResults.map((r) => ({
       ...r,
       expansion,
       usedQueryExpansion,
+      usedReranking,
     }));
   }
 
-  return finalResults.map((r) => ({ ...r, usedQueryExpansion }));
+  return finalResults.map((r) => ({
+    ...r,
+    usedQueryExpansion,
+    usedReranking,
+  }));
 }
 
 export type { SearchResult, HybridSearchOptions };
