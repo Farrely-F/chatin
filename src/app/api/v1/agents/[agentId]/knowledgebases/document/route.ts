@@ -4,8 +4,8 @@ import { knowledgeBases } from "@/db/schema/knowledgebases";
 import { aiModels } from "@/db/schema/models";
 import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { extractTextFromPdf } from "@/lib/pdf-extractor";
+import { splitIntoChunksSemantic } from "@/lib/semantic-chunker";
 import { supabase } from "@/lib/supabase/client";
-import { splitIntoChunks } from "@/lib/text-chunker";
 import {
   isAgenticParseContextLimitError,
   isAgenticParseInvalidProviderResponseError,
@@ -186,7 +186,11 @@ export const POST = async (
         }
       }
 
-      const chunks = await splitIntoChunks(text, { chunkSize });
+      const chunks = await splitIntoChunksSemantic(text, {
+        chunkSize,
+        preserveTables: true,
+        preserveLists: true,
+      });
       const embeddings = await generateMultipleEmbeddings(chunks);
 
       if (embeddings.length === 0) {
