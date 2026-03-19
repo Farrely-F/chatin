@@ -19,6 +19,7 @@ import {
 } from "ai";
 import { z } from "zod/v4";
 
+import { sanitizeContent } from "./content-sanitizer";
 import { searchSimilarChunksHybrid } from "./similarity-search";
 
 export type FeedbackGuidance = {
@@ -475,17 +476,24 @@ function llmToolsConfig({
           rerankWeight: 0.4,
         });
 
-        return results.map((r) => ({
-          id: r.id,
-          content: r.content,
-          similarity: r.rerankScore ?? r.hybridScore ?? r.similarity,
-          hybridScore: r.hybridScore,
-          bm25Score: r.bm25Score,
-          rerankScore: r.rerankScore,
-          expansionTerms: r.expansion?.addedTerms,
-          usedQueryExpansion: r.usedQueryExpansion,
-          usedReranking: r.usedReranking,
-        }));
+        const sanitizedResults = results.map((r) => {
+          const sanitized = sanitizeContent(r.content);
+          return {
+            id: r.id,
+            content: sanitized.content,
+            similarity: r.rerankScore ?? r.hybridScore ?? r.similarity,
+            hybridScore: r.hybridScore,
+            bm25Score: r.bm25Score,
+            rerankScore: r.rerankScore,
+            expansionTerms: r.expansion?.addedTerms,
+            usedQueryExpansion: r.usedQueryExpansion,
+            usedReranking: r.usedReranking,
+            contentSanitized: sanitized.hadToSanitize,
+            sanitizationWarnings: sanitized.warnings,
+          };
+        });
+
+        return sanitizedResults;
       },
     }),
   } satisfies Record<string, Tool>;

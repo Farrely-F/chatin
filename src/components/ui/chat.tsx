@@ -100,6 +100,8 @@ type RetrievedChunk = {
   expansionTerms?: string[];
   usedQueryExpansion?: boolean;
   usedReranking?: boolean;
+  contentSanitized?: boolean;
+  sanitizationWarnings?: string[];
 };
 
 type ChatPartLike = {
@@ -199,6 +201,12 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
         ...(candidate.usedReranking !== undefined && {
           usedReranking: candidate.usedReranking,
         }),
+        ...(candidate.contentSanitized !== undefined && {
+          contentSanitized: candidate.contentSanitized,
+        }),
+        ...(candidate.sanitizationWarnings !== undefined && {
+          sanitizationWarnings: candidate.sanitizationWarnings,
+        }),
       } as RetrievedChunk;
     })
     .filter((chunk): chunk is RetrievedChunk => chunk !== null)
@@ -291,6 +299,8 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
     useReranking,
     expansionTerms: retrievedChunks[0]?.expansionTerms,
     usedQueryExpansion: retrievedChunks[0]?.usedQueryExpansion ?? false,
+    contentSanitized: retrievedChunks.some((c) => c.contentSanitized),
+    sanitizationWarnings: retrievedChunks[0]?.sanitizationWarnings,
   };
 }
 
@@ -541,6 +551,14 @@ function AssistantResponseInspector({
             {retrievalDebug.retrievalErrors} retrieval tool call
             {retrievalDebug.retrievalErrors > 1 ? "s" : ""} failed for this
             response.
+          </p>
+        )}
+
+        {retrievalDebug.contentSanitized && (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Content sanitized:{" "}
+            {retrievalDebug.sanitizationWarnings?.join(", ") ||
+              "removed injection patterns"}
           </p>
         )}
 
