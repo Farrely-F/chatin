@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth/auth";
+import { getEmbeddingCacheStats } from "@/lib/embedding-model";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
@@ -98,6 +99,7 @@ export async function POST(
       if (part.type === "finish") {
         const inputTokens = part.totalUsage.inputTokens ?? 0;
         const cachedInputTokens = part.totalUsage.cachedInputTokens ?? 0;
+        const embeddingCacheStats = getEmbeddingCacheStats();
 
         return {
           totalUsage: part.totalUsage,
@@ -106,6 +108,10 @@ export async function POST(
             cachedInputTokens,
             hitRate:
               inputTokens > 0 ? cachedInputTokens / inputTokens : undefined,
+          },
+          embeddingCache: {
+            hitRate: embeddingCacheStats.hitRate,
+            size: embeddingCacheStats.stats.size,
           },
         };
       }

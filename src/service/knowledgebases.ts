@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { chunkEmbeddings } from "@/db/schema/embeddings";
 import { knowledgeBases } from "@/db/schema/knowledgebases";
+import { invalidateEmbeddingCache } from "@/lib/embedding-cache";
 import { generateEmbeddings } from "@/lib/embedding-model";
 import { supabase } from "@/lib/supabase/client";
 import { and, eq, sql } from "drizzle-orm";
@@ -50,6 +51,8 @@ export async function deleteKnowledgeBaseById(
     });
 
     revalidatePath(`/dashboard/agents/${agentId}`);
+
+    invalidateEmbeddingCache();
 
     return { message: "Knowledge base deleted successfully" };
   } catch (error) {

@@ -1,3 +1,4 @@
+import { getEmbeddingCacheStats } from "@/lib/embedding-model";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
 import { withAuth } from "@/middleware/api-middleware";
 import {
@@ -65,6 +66,7 @@ async function postHandler(...args: ApiHandlerArgs) {
         if (part.type === "finish") {
           const inputTokens = part.totalUsage.inputTokens ?? 0;
           const cachedInputTokens = part.totalUsage.cachedInputTokens ?? 0;
+          const embeddingCacheStats = getEmbeddingCacheStats();
 
           return {
             totalUsage: part.totalUsage,
@@ -73,6 +75,10 @@ async function postHandler(...args: ApiHandlerArgs) {
               cachedInputTokens,
               hitRate:
                 inputTokens > 0 ? cachedInputTokens / inputTokens : undefined,
+            },
+            embeddingCache: {
+              hitRate: embeddingCacheStats.hitRate,
+              size: embeddingCacheStats.stats.size,
             },
           };
         }

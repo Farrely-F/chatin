@@ -84,6 +84,10 @@ type MessageMetadata = {
     cachedInputTokens?: number;
     hitRate?: number;
   };
+  embeddingCache?: {
+    hitRate?: number;
+    size?: number;
+  };
 };
 
 type RetrievedChunk = {
@@ -318,6 +322,8 @@ type AssistantResponseInspectorProps = Readonly<{
   messageInputTokens: number;
   messageCachedInputTokens: number;
   messageCacheHitRate?: number;
+  embeddingCacheHitRate?: number;
+  embeddingCacheSize?: number;
   retrievalDebug: ReturnType<typeof collectRetrievalDebug>;
   normalizedSimilarityThreshold: number;
   normalizedTopK: number;
@@ -336,6 +342,8 @@ function AssistantResponseInspector({
   messageInputTokens,
   messageCachedInputTokens,
   messageCacheHitRate,
+  embeddingCacheHitRate,
+  embeddingCacheSize,
   retrievalDebug,
   normalizedSimilarityThreshold,
   normalizedTopK,
@@ -461,6 +469,14 @@ function AssistantResponseInspector({
               <p className="text-muted-foreground">Top Similarity</p>
               <p className="font-medium text-foreground">
                 {formatSimilarity(retrievalDebug.topSimilarity)}
+              </p>
+            </div>
+          )}
+          {embeddingCacheHitRate !== undefined && (
+            <div className="rounded-md border bg-background p-2">
+              <p className="text-muted-foreground">Embed Cache</p>
+              <p className="font-medium text-foreground">
+                {formatSimilarity(embeddingCacheHitRate)} ({embeddingCacheSize})
               </p>
             </div>
           )}
@@ -1094,6 +1110,12 @@ export default function Chat({
                         messageInputTokens={messageInputTokens}
                         messageCachedInputTokens={messageCachedInputTokens}
                         messageCacheHitRate={messageCacheHitRate}
+                        embeddingCacheHitRate={
+                          messageMetadata?.embeddingCache?.hitRate
+                        }
+                        embeddingCacheSize={
+                          messageMetadata?.embeddingCache?.size
+                        }
                         retrievalDebug={retrievalDebug}
                         normalizedSimilarityThreshold={
                           normalizedSimilarityThreshold
