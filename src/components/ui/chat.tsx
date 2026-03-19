@@ -90,6 +90,8 @@ type RetrievedChunk = {
   id: string;
   content: string;
   similarity: number;
+  hybridScore?: number;
+  bm25Score?: number;
 };
 
 type ChatPartLike = {
@@ -171,7 +173,13 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
         id: candidate.id,
         content: candidate.content,
         similarity: Math.min(1, Math.max(0, candidate.similarity)),
-      } satisfies RetrievedChunk;
+        ...(candidate.hybridScore !== undefined && {
+          hybridScore: candidate.hybridScore,
+        }),
+        ...(candidate.bm25Score !== undefined && {
+          bm25Score: candidate.bm25Score,
+        }),
+      } as RetrievedChunk;
     })
     .filter((chunk): chunk is RetrievedChunk => chunk !== null)
     .sort((a, b) => b.similarity - a.similarity);
@@ -212,7 +220,15 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
         .flatMap((part) => normalizeRetrievedChunks(part.output))
         .map((chunk) => [chunk.id, chunk]),
     ).values(),
-  ).sort((a, b) => b.similarity - a.similarity);
+  ).sort((a, b) => {
+    const scoreA = a.hybridScore ?? a.similarity;
+    const scoreB = b.hybridScore ?? b.similarity;
+    return scoreB - scoreA;
+  });
+
+  const useHybridScores = retrievedChunks.some(
+    (c) => c.hybridScore !== undefined,
+  );
 
   const averageSimilarity =
     retrievedChunks.length === 0
@@ -220,12 +236,24 @@ function collectRetrievalDebug(parts: ChatPartLike[]) {
       : retrievedChunks.reduce((sum, chunk) => sum + chunk.similarity, 0) /
         retrievedChunks.length;
 
+  const averageHybridScore =
+    retrievedChunks.length === 0 || !useHybridScores
+      ? undefined
+      : retrievedChunks.reduce(
+          (sum, chunk) => sum + (chunk.hybridScore ?? 0),
+          0,
+        ) / retrievedChunks.length;
+
   return {
     retrievalCalls: retrievalParts.length,
     retrievalErrors,
     retrievedChunks,
     averageSimilarity,
+    averageHybridScore,
     topSimilarity: retrievedChunks[0]?.similarity ?? 0,
+    topHybridScore:
+      retrievedChunks[0]?.hybridScore ?? retrievedChunks[0]?.similarity ?? 0,
+    useHybridScores,
   };
 }
 
@@ -309,7 +337,10 @@ function AssistantResponseInspector({
   onFeedbackNoteChange,
   onSubmitCorrection,
 }: AssistantResponseInspectorProps) {
-  const confidence = getSimilarityConfidence(retrievalDebug.averageSimilarity);
+  const scoreForConfidence = retrievalDebug.useHybridScores
+    ? (retrievalDebug.averageHybridScore ?? retrievalDebug.averageSimilarity)
+    : retrievalDebug.averageSimilarity;
+  const confidence = getSimilarityConfidence(scoreForConfidence ?? 0);
 
   return (
     <details className="rounded-xl border border-dashed bg-muted/40 p-3 mt-3">
@@ -327,9 +358,22 @@ function AssistantResponseInspector({
             <span>Cache hit: {formatSimilarity(messageCacheHitRate)}</span>
           )}
           <span>Retrieval calls: {retrievalDebug.retrievalCalls}</span>
-          <span>
-            Avg similarity: {formatSimilarity(retrievalDebug.averageSimilarity)}
-          </span>
+          {retrievalDebug.useHybridScores ? (
+            <>
+              <span>
+                Avg hybrid:{" "}
+                {formatSimilarity(retrievalDebug.averageHybridScore ?? 0)}
+              </span>
+              <span className="text-muted-foreground/70">
+                (vec: {formatSimilarity(retrievalDebug.averageSimilarity)})
+              </span>
+            </>
+          ) : (
+            <span>
+              Avg similarity:{" "}
+              {formatSimilarity(retrievalDebug.averageSimilarity)}
+            </span>
+          )}
           {retrievalDebug.retrievalCalls > 0 && (
             <span className={cn("font-medium", confidence.tone)}>
               Confidence: {confidence.label}
@@ -374,12 +418,33 @@ function AssistantResponseInspector({
               {retrievalDebug.retrievedChunks.length}
             </p>
           </div>
-          <div className="rounded-md border bg-background p-2">
-            <p className="text-muted-foreground">Top Similarity</p>
-            <p className="font-medium text-foreground">
-              {formatSimilarity(retrievalDebug.topSimilarity)}
-            </p>
-          </div>
+          {retrievalDebug.useHybridScores ? (
+            <>
+              <div className="rounded-md border bg-background p-2">
+                <p className="text-muted-foreground">Top Hybrid</p>
+                <p className="font-medium text-foreground">
+                  {formatSimilarity(retrievalDebug.topHybridScore)}
+                </p>
+              </div>
+              <div className="rounded-md border bg-background p-2">
+                <p className="text-muted-foreground">Top BM25</p>
+                <p className="font-medium text-foreground">
+                  {retrievalDebug.retrievedChunks[0]?.bm25Score !== undefined
+                    ? formatSimilarity(
+                        retrievalDebug.retrievedChunks[0].bm25Score,
+                      )
+                    : "n/a"}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-md border bg-background p-2">
+              <p className="text-muted-foreground">Top Similarity</p>
+              <p className="font-medium text-foreground">
+                {formatSimilarity(retrievalDebug.topSimilarity)}
+              </p>
+            </div>
+          )}
         </div>
 
         {retrievalDebug.retrievalErrors > 0 && (

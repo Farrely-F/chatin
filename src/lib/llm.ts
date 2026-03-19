@@ -19,7 +19,7 @@ import {
 } from "ai";
 import { z } from "zod/v4";
 
-import { searchSimilarChunks } from "./similarity-search";
+import { searchSimilarChunksHybrid } from "./similarity-search";
 
 export type FeedbackGuidance = {
   userQuestion: string;
@@ -461,13 +461,23 @@ function llmToolsConfig({
           Math.max(0, agentConfig.similarityThreshold ?? 0.5),
         );
 
-        const context = await searchSimilarChunks({
+        const results = await searchSimilarChunksHybrid({
           query: userQuestion,
           agentId,
           topK: normalizedTopK,
           similarityThreshold: normalizedSimilarityThreshold,
+          enableHybrid: true,
+          vectorWeight: 0.6,
+          bm25Weight: 0.4,
         });
-        return context;
+
+        return results.map((r) => ({
+          id: r.id,
+          content: r.content,
+          similarity: r.hybridScore ?? r.similarity,
+          hybridScore: r.hybridScore,
+          bm25Score: r.bm25Score,
+        }));
       },
     }),
   } satisfies Record<string, Tool>;
