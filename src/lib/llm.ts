@@ -26,6 +26,7 @@ export type FeedbackGuidance = {
   userQuestion: string;
   expectedResponse: string;
   feedbackNote: string | null;
+  strict?: boolean; // Future use to enforce strict matching of expected response
 };
 
 type OpenRouterPromptCacheControl = {
@@ -207,20 +208,33 @@ function prioritizeFeedbackGuidance(
     );
   });
 
+  const exactMatchIds = new Set(
+    exactMatches.map(
+      (f) =>
+        `${f.userQuestion}|${f.expectedResponse}|${f.feedbackNote ?? "null"}`,
+    ),
+  );
+
   const prioritizedGuidance = [
     ...exactMatches,
     ...relatedMatches,
     ...feedbackGuidance,
-  ].filter((feedback, index, list) => {
-    const firstIndex = list.findIndex(
-      (candidate) =>
-        candidate.userQuestion === feedback.userQuestion &&
-        candidate.expectedResponse === feedback.expectedResponse &&
-        candidate.feedbackNote === feedback.feedbackNote,
+  ]
+    .filter((feedback, index, list) => {
+      const id = `${feedback.userQuestion}|${feedback.expectedResponse}|${feedback.feedbackNote ?? "null"}`;
+      const firstIndex = list.findIndex(
+        (c) =>
+          `${c.userQuestion}|${c.expectedResponse}|${c.feedbackNote ?? "null"}` ===
+          id,
+      );
+      return firstIndex === index;
+    })
+    .filter(
+      (feedback) =>
+        !exactMatchIds.has(
+          `${feedback.userQuestion}|${feedback.expectedResponse}|${feedback.feedbackNote ?? "null"}`,
+        ),
     );
-
-    return firstIndex === index;
-  });
 
   return { prioritizedGuidance, exactMatches };
 }
@@ -241,43 +255,32 @@ function generateSysPrompt(
     currentUserQuestion,
   );
 
-  const exactMatchDirective =
-    exactMatches.length > 0
-      ? `
-🚨 **Exact Match Correction Rule (MANDATORY)**
-- The current user question matches a previously corrected question.
-- You MUST prioritize the preferred response below as the source of truth for the answer.
-- Do not contradict it, even if retrieved chunks suggest alternatives.
-
-Current Question:
-${currentUserQuestion}
-
-Required Preferred Response:
-${exactMatches[0].expectedResponse}
-`
-      : "";
+  const feedbackSection = [
+    ...exactMatches.map((f) => ({ ...f, isExact: true })),
+    ...prioritizedGuidance.map((f) => ({ ...f, isExact: false })),
+  ];
 
   const feedbackGuidancePrompt =
-    prioritizedGuidance.length > 0
+    feedbackSection.length > 0
       ? `
-🎯 **User Feedback Guidance (High Priority)**
-- Use the following correction examples to align your answer with this user's expectation.
-- Keep this guidance internal and never mention feedback records explicitly.
-- If the current question is the same as one of these examples, follow the preferred response directly.
+🎯 **User Feedback Guidance**
+- The following are examples from previous user interactions.
+- Use these to understand user preferences and communication style.
+- Apply suggested approaches naturally when relevant.
 
-${exactMatchDirective}
-
-${prioritizedGuidance
-  .map(
-    (feedback, index) =>
-      `${index + 1}. User Question: ${feedback.userQuestion}
-   Preferred Response: ${feedback.expectedResponse}${
+${feedbackSection
+  .map((feedback, index) => {
+    const label = feedback.isExact
+      ? "Exact Match (User Corrected)"
+      : "Related Example";
+    return `${index + 1}. [${label}] User Question: ${feedback.userQuestion}
+   Suggested Response: ${feedback.expectedResponse}${
      feedback.feedbackNote
        ? `
-   Additional Note: ${feedback.feedbackNote}`
+   Note: ${feedback.feedbackNote}`
        : ""
-   }`,
-  )
+   }`;
+  })
   .join("\n\n")}
 `
       : "";
