@@ -46,6 +46,7 @@ async function postHandler(
       agentConfig,
       messages,
       agentId,
+      requestUserId: user_id,
     });
 
     if (!response) {

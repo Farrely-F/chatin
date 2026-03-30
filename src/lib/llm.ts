@@ -1,3 +1,4 @@
+import { logAgentUsage } from "@/service/agent-usage";
 import { AgentWithKnowledgeBase } from "@/service/agents";
 import { ModelDetails } from "@/service/model";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -36,6 +37,19 @@ type OpenRouterPromptCacheControl = {
 
 type LlmProviderOptions = {
   openrouter?: Record<string, JSONValue>;
+};
+
+type ProviderUsage = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  promptTokensDetails?: {
+    cachedTokens?: number;
+  };
+  cost?: number;
+  costDetails?: {
+    upstreamInferenceCost?: number;
+  };
 };
 
 const openai = createOpenAI({
@@ -107,6 +121,42 @@ function buildLlmProviderOptions({
   return {
     openrouter: openrouterOptions,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getProviderUsage(
+  provider: string,
+  providerMetadata: unknown,
+): ProviderUsage | undefined {
+  if (!isRecord(providerMetadata)) {
+    return undefined;
+  }
+
+  const providerEntry = providerMetadata[provider];
+  if (!isRecord(providerEntry)) {
+    return undefined;
+  }
+
+  const usage = providerEntry.usage;
+  if (!isRecord(usage)) {
+    return undefined;
+  }
+
+  return usage as ProviderUsage;
+}
+
+function getBilledCostUsd(providerUsage: ProviderUsage | undefined) {
+  const cost =
+    providerUsage?.costDetails?.upstreamInferenceCost ?? providerUsage?.cost;
+
+  if (!Number.isFinite(cost) || (cost ?? 0) < 0) {
+    return undefined;
+  }
+
+  return cost;
 }
 
 export function getLLMProvider(
@@ -383,12 +433,47 @@ export function generateStreamResponse({
 
     topP: agentConfig.topP || 1,
     onError: (error) => console.error(error),
+    onFinish: async ({ usage, providerMetadata }) => {
+      const providerUsage = getProviderUsage(
+        agentConfig.model.provider,
+        providerMetadata,
+      );
+      const inputTokens = providerUsage?.promptTokens ?? usage.inputTokens ?? 0;
+      const outputTokens =
+        providerUsage?.completionTokens ?? usage.outputTokens ?? 0;
+      const cachedInputTokens =
+        providerUsage?.promptTokensDetails?.cachedTokens ??
+        usage.cachedInputTokens ??
+        0;
+      const totalTokens =
+        providerUsage?.totalTokens ?? usage.totalTokens ?? inputTokens + outputTokens;
+
+      await logAgentUsage({
+        agentId,
+        modelId: agentConfig.model.id,
+        provider: agentConfig.model.provider,
+        requestUserId,
+        source: "stream",
+        inputTokens,
+        outputTokens,
+        cachedInputTokens,
+        totalTokens,
+        billedCostUsd: getBilledCostUsd(providerUsage),
+      });
+
+      console.log(
+        "LLM Response Finished. Usage:",
+        usage,
+        "Provider Usage:",
+        providerUsage,
+      );
+    },
   });
 
   return response;
 }
 
-export function generateTextResponse({
+export async function generateTextResponse({
   model,
   agentConfig,
   messages,
@@ -415,7 +500,7 @@ export function generateTextResponse({
     requestUserId,
   });
 
-  const response = generateText({
+  const response = await generateText({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
     model,
@@ -434,6 +519,73 @@ export function generateTextResponse({
     providerOptions,
 
     topP: agentConfig.topP || 1,
+  });
+
+  const usage =
+    (
+      response as {
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+          cachedInputTokens?: number;
+        };
+        response?: {
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            cachedInputTokens?: number;
+          };
+        };
+      }
+    ).usage ??
+    (
+      response as {
+        response?: {
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            cachedInputTokens?: number;
+          };
+        };
+      }
+    ).response?.usage;
+
+  const responseProviderMetadata =
+    (
+      response as {
+        providerMetadata?: unknown;
+      }
+    ).providerMetadata ??
+    (
+      response as {
+        response?: {
+          providerMetadata?: unknown;
+        };
+      }
+    ).response?.providerMetadata;
+
+  const providerUsage = getProviderUsage(
+    agentConfig.model.provider,
+    responseProviderMetadata,
+  );
+
+  await logAgentUsage({
+    agentId,
+    modelId: agentConfig.model.id,
+    provider: agentConfig.model.provider,
+    requestUserId,
+    source: "text",
+    inputTokens: providerUsage?.promptTokens ?? usage?.inputTokens ?? 0,
+    outputTokens: providerUsage?.completionTokens ?? usage?.outputTokens ?? 0,
+    cachedInputTokens:
+      providerUsage?.promptTokensDetails?.cachedTokens ??
+      usage?.cachedInputTokens ??
+      0,
+    totalTokens: providerUsage?.totalTokens ?? usage?.totalTokens,
+    billedCostUsd: getBilledCostUsd(providerUsage),
   });
 
   return response;

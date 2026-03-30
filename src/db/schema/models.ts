@@ -1,6 +1,7 @@
 // drizzle/schema/ai_models.ts
 import {
   boolean,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -22,6 +23,18 @@ export const aiModels = pgTable("ai_models", {
   supportsObjectGeneration: boolean("supports_object_generation")
     .default(false)
     .notNull(),
+  inputCostPer1mTokens: numeric("input_cost_per_1m_tokens", {
+    precision: 12,
+    scale: 6,
+  })
+    .notNull()
+    .default("0"),
+  outputCostPer1mTokens: numeric("output_cost_per_1m_tokens", {
+    precision: 12,
+    scale: 6,
+  })
+    .notNull()
+    .default("0"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

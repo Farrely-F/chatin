@@ -20,7 +20,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ModelSchema, modelSchema } from "@/schema/model-schema";
+import {
+  ModelSchema,
+  ModelSchemaInput,
+  modelSchema,
+} from "@/schema/model-schema";
 import { ModelDetails } from "@/service/model";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
@@ -40,8 +44,8 @@ export function ModelForm({
   onOpenChange,
   onSubmit,
   model,
-}: ModelFormProps) {
-  const form = useForm<ModelSchema>({
+}: Readonly<ModelFormProps>) {
+  const form = useForm<ModelSchemaInput, unknown, ModelSchema>({
     resolver: zodResolver(modelSchema),
     defaultValues: {
       name: "",
@@ -52,6 +56,8 @@ export function ModelForm({
       supportsToolUse: false,
       supportsToolStreaming: false,
       supportsObjectGeneration: false,
+      inputCostPer1mTokens: 0,
+      outputCostPer1mTokens: 0,
     },
   });
 
@@ -67,6 +73,8 @@ export function ModelForm({
         supportsToolUse: model.supportsToolUse,
         supportsToolStreaming: model.supportsToolStreaming,
         supportsObjectGeneration: model.supportsObjectGeneration,
+        inputCostPer1mTokens: Number(model.inputCostPer1mTokens ?? 0),
+        outputCostPer1mTokens: Number(model.outputCostPer1mTokens ?? 0),
       });
     } else if (open && !model) {
       form.reset({
@@ -78,6 +86,8 @@ export function ModelForm({
         supportsToolUse: false,
         supportsToolStreaming: false,
         supportsObjectGeneration: false,
+        inputCostPer1mTokens: 0,
+        outputCostPer1mTokens: 0,
       });
     }
   }, [open, model, form]);
@@ -93,7 +103,21 @@ export function ModelForm({
       supportsToolUse: values.supportsToolUse,
       supportsToolStreaming: values.supportsToolStreaming,
       supportsObjectGeneration: values.supportsObjectGeneration,
+      inputCostPer1mTokens: values.inputCostPer1mTokens,
+      outputCostPer1mTokens: values.outputCostPer1mTokens,
     });
+  };
+
+  const getNumberInputValue = (value: unknown): string | number => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      return value;
+    }
+
+    return "";
   };
 
   return (
@@ -159,6 +183,66 @@ export function ModelForm({
                 </FormItem>
               )}
             />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="inputCostPer1mTokens"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Input Cost / 1M Tokens (USD)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.000001"
+                        placeholder="3"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={getNumberInputValue(field.value)}
+                        onChange={(event) => {
+                          field.onChange(event.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Charged by provider for 1M input tokens on this model.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="outputCostPer1mTokens"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Output Cost / 1M Tokens (USD)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.000001"
+                        placeholder="15"
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={getNumberInputValue(field.value)}
+                        onChange={(event) => {
+                          field.onChange(event.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Charged by provider for 1M output tokens on this model.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

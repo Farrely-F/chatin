@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from "zod/v4";
 
 export const modelSchema = z.object({
   id: z.string().optional(),
@@ -24,8 +24,15 @@ export const modelSchema = z.object({
   supportsToolUse: z.boolean(),
   supportsToolStreaming: z.boolean(),
   supportsObjectGeneration: z.boolean(),
+  inputCostPer1mTokens: z.coerce
+    .number()
+    .min(0, { message: "Input cost must be greater than or equal to 0." }),
+  outputCostPer1mTokens: z.coerce
+    .number()
+    .min(0, { message: "Output cost must be greater than or equal to 0." }),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),
 });
 
 export type ModelSchema = z.infer<typeof modelSchema>;
+export type ModelSchemaInput = z.input<typeof modelSchema>;

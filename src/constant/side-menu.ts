@@ -1,4 +1,5 @@
 import {
+  Activity,
   BookText,
   Bot,
   Code2Icon,
@@ -96,6 +97,12 @@ export const data: {
           title: "Model Management",
           url: "/dashboard/model-management",
           icon: Wrench,
+          disabled: false,
+        },
+        {
+          title: "Monitoring",
+          url: "/dashboard/monitoring",
+          icon: Activity,
           disabled: false,
         },
       ],

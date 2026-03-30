@@ -32,6 +32,14 @@ const DELETE_MODEL_ERROR_MESSAGES: Record<string, string> = {
   MODEL_NOT_FOUND: "Model not found.",
 };
 
+function toModelDbValues(data: ModelSchema) {
+  return {
+    ...data,
+    inputCostPer1mTokens: Number(data.inputCostPer1mTokens).toFixed(6),
+    outputCostPer1mTokens: Number(data.outputCostPer1mTokens).toFixed(6),
+  };
+}
+
 function getDeleteModelErrorMessage(error: unknown) {
   if (error instanceof Error && DELETE_MODEL_ERROR_MESSAGES[error.message]) {
     return DELETE_MODEL_ERROR_MESSAGES[error.message];
@@ -52,7 +60,7 @@ export async function getAllModels() {
 
 export async function addNewModel(data: ModelSchema) {
   try {
-    const res = await db.insert(aiModels).values({ ...data });
+    const res = await db.insert(aiModels).values(toModelDbValues(data));
 
     if (!res) {
       return {
@@ -173,7 +181,7 @@ export async function updateModel(id: string, data: ModelSchema) {
   try {
     await db
       .update(aiModels)
-      .set({ ...data })
+      .set(toModelDbValues(data))
       .where(eq(aiModels.id, id));
 
     revalidatePath("/dashboard/model-management");

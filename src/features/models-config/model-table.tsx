@@ -141,6 +141,17 @@ export function ModelTable({
     }).format(date);
   };
 
+  const formatUsd = (value: string | number | null | undefined) => {
+    const parsed = Number(value ?? 0);
+
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(Number.isFinite(parsed) ? parsed : 0);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-4">
@@ -205,6 +216,12 @@ export function ModelTable({
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Provider</TableHead>
+              <TableHead className="hidden lg:table-cell">
+                Input / 1M (USD)
+              </TableHead>
+              <TableHead className="hidden lg:table-cell">
+                Output / 1M (USD)
+              </TableHead>
               <TableHead className="hidden md:table-cell">
                 Description
               </TableHead>
@@ -219,7 +236,7 @@ export function ModelTable({
             {filteredModels.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={8}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No models found
@@ -230,6 +247,12 @@ export function ModelTable({
                 <TableRow key={model.id}>
                   <TableCell className="font-medium">{model.name}</TableCell>
                   <TableCell className="capitalize">{model.provider}</TableCell>
+                  <TableCell className="hidden lg:table-cell font-mono text-xs">
+                    {formatUsd(model.inputCostPer1mTokens)}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell font-mono text-xs">
+                    {formatUsd(model.outputCostPer1mTokens)}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell max-w-xs truncate">
                     {model.description || "—"}
                   </TableCell>
