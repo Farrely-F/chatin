@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CodeBlock } from "@/components/ui/code-block";
 import { CopyButton } from "@/components/ui/copy-button";
 import { useChatStore } from "@/lib/chat-store";
+import { cn } from "@/lib/utils";
 import { AgentDetails } from "@/service/agents";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +23,7 @@ import {
 } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { z } from "zod/v4";
 
@@ -59,6 +61,58 @@ const markdownComponents = {
           {children}
         </code>
       </pre>
+    );
+  },
+  table({ className, children, ...props }: ComponentProps<"table">) {
+    return (
+      <div className="my-3 w-full overflow-x-auto rounded-lg border border-border bg-background">
+        <table
+          className={cn("w-full min-w-max border-collapse text-sm", className)}
+          {...props}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead({ className, children, ...props }: ComponentProps<"thead">) {
+    return (
+      <thead className={cn("bg-muted/60", className)} {...props}>
+        {children}
+      </thead>
+    );
+  },
+  tr({ className, children, ...props }: ComponentProps<"tr">) {
+    return (
+      <tr className={cn("border-b border-border", className)} {...props}>
+        {children}
+      </tr>
+    );
+  },
+  th({ className, children, ...props }: ComponentProps<"th">) {
+    return (
+      <th
+        className={cn(
+          "border-r border-border px-3 py-2 text-left text-xs font-semibold text-foreground last:border-r-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </th>
+    );
+  },
+  td({ className, children, ...props }: ComponentProps<"td">) {
+    return (
+      <td
+        className={cn(
+          "border-r border-border px-3 py-2 align-top text-sm text-muted-foreground last:border-r-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </td>
     );
   },
 };
@@ -174,7 +228,10 @@ export default function Chat({
                       </div>
                     }
                   >
-                    <ReactMarkdown components={markdownComponents}>
+                    <ReactMarkdown
+                      components={markdownComponents}
+                      remarkPlugins={[remarkGfm]}
+                    >
                       {part.text}
                     </ReactMarkdown>
                   </ChatMessage>

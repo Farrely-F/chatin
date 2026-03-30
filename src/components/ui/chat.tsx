@@ -33,6 +33,7 @@ import {
 } from "react";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { z } from "zod/v4";
 
@@ -345,6 +346,58 @@ const markdownComponents = {
       <code className="px-1.5 py-0.5 rounded bg-muted text-sm" {...props}>
         {children}
       </code>
+    );
+  },
+  table({ className, children, ...props }: React.ComponentProps<"table">) {
+    return (
+      <div className="my-3 w-full overflow-x-auto rounded-lg border border-border bg-background">
+        <table
+          className={cn("w-full min-w-max border-collapse text-sm", className)}
+          {...props}
+        >
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead({ className, children, ...props }: React.ComponentProps<"thead">) {
+    return (
+      <thead className={cn("bg-muted/60", className)} {...props}>
+        {children}
+      </thead>
+    );
+  },
+  tr({ className, children, ...props }: React.ComponentProps<"tr">) {
+    return (
+      <tr className={cn("border-b border-border", className)} {...props}>
+        {children}
+      </tr>
+    );
+  },
+  th({ className, children, ...props }: React.ComponentProps<"th">) {
+    return (
+      <th
+        className={cn(
+          "border-r border-border px-3 py-2 text-left text-xs font-semibold text-foreground last:border-r-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </th>
+    );
+  },
+  td({ className, children, ...props }: React.ComponentProps<"td">) {
+    return (
+      <td
+        className={cn(
+          "border-r border-border px-3 py-2 align-top text-sm text-muted-foreground last:border-r-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </td>
     );
   },
 };
@@ -1171,7 +1224,10 @@ export default function Chat({
                     isUser={msg.role === "user"}
                     key={`${msg.id}-${idx}`}
                   >
-                    <ReactMarkdown components={markdownComponents}>
+                    <ReactMarkdown
+                      components={markdownComponents}
+                      remarkPlugins={[remarkGfm]}
+                    >
                       {part.text}
                     </ReactMarkdown>
 
@@ -1247,7 +1303,10 @@ export default function Chat({
                           : "Thinking"}
                       </summary>
                       <div className="mt-2 text-sm text-muted-foreground">
-                        <ReactMarkdown components={markdownComponents}>
+                        <ReactMarkdown
+                          components={markdownComponents}
+                          remarkPlugins={[remarkGfm]}
+                        >
                           {reasoningText}
                         </ReactMarkdown>
                       </div>
