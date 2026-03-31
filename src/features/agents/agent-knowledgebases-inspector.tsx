@@ -892,7 +892,7 @@ export default function AgentKnowledgebasesInspector({
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[94vw] xl:max-w-7xl">
         <DialogHeader>
-          <DialogTitle>Inspect Whole Knowledgebase</DialogTitle>
+          <DialogTitle>Inspect Agent Knowledgebase</DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-2">

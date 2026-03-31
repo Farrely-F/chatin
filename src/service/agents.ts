@@ -2,9 +2,11 @@
 
 import { db } from "@/db";
 import { agents } from "@/db/schema/agents";
+import { users } from "@/db/schema/users";
+import { hasPermission } from "@/lib/check-permission";
 import { slugify } from "@/lib/utils";
 import { AgentFormValues } from "@/schema/agent-schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getAllAgents(userId: string) {
@@ -56,6 +58,27 @@ export async function getDeployedAgents() {
     })
     .from(agents)
     .where(eq(agents.status, "active"));
+  return res || [];
+}
+
+export async function getPublicDeployedAgents() {
+  const res = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      slug: agents.slug,
+      status: agents.status,
+      createdAt: agents.createdAt,
+      ownerId: users.id,
+      ownerName: users.name,
+      ownerEmail: users.email,
+    })
+    .from(agents)
+    .innerJoin(users, eq(agents.userId, users.id))
+    .where(eq(agents.status, "active"))
+    .orderBy(desc(agents.createdAt));
+
   return res || [];
 }
 
@@ -252,6 +275,46 @@ export async function changeAgentStatus(
   }
 }
 
+export async function forceArchiveAgent(agentId: string, adminUserId: string) {
+  if (!adminUserId) {
+    return { error: "Unauthorized" };
+  }
+
+  const authorized = await hasPermission(adminUserId, "system.read");
+
+  if (!authorized) {
+    return { error: "Unauthorized" };
+  }
+
+  const [agent] = await db
+    .select({ slug: agents.slug })
+    .from(agents)
+    .where(eq(agents.id, agentId))
+    .limit(1);
+
+  if (!agent) {
+    return { error: "Agent not found" };
+  }
+
+  try {
+    await db
+      .update(agents)
+      .set({ status: "archived" })
+      .where(eq(agents.id, agentId));
+
+    revalidatePath("/dashboard/monitoring/public-agents");
+    revalidatePath("/dashboard/deployed-agents");
+    if (agent.slug) {
+      revalidatePath(`/chat/${agent.slug}`);
+    }
+
+    return { message: "Agent archived successfully" };
+  } catch (error) {
+    console.error(error);
+    return { error: "Cannot process your request" };
+  }
+}
+
 export async function getDeployedAgentBySlug(slug: string) {
   try {
     const agent = await db.query.agents.findFirst({
@@ -279,3 +342,6 @@ export type AgentDetails = typeof agents.$inferSelect;
 export type AgentWithKnowledgeBase = Awaited<
   ReturnType<typeof getAgentWithKnowledgeBase>
 >;
+export type PublicDeployedAgent = Awaited<
+  ReturnType<typeof getPublicDeployedAgents>
+>[number];

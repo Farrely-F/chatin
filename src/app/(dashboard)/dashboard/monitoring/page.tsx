@@ -30,8 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsageCharts } from "@/features/monitoring/usage-charts";
 import { getAgentUsageMonitoring } from "@/service/monitoring";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -203,6 +205,19 @@ export default async function MonitoringPage({
         <p className="text-muted-foreground">
           Track AI provider usage, token consumption, and cost projection.
         </p>
+
+        <Tabs value="overview">
+          <TabsList>
+            <TabsTrigger value="overview" asChild>
+              <Link href="/dashboard/monitoring">Overview</Link>
+            </TabsTrigger>
+            <TabsTrigger value="public-agents" asChild>
+              <Link href="/dashboard/monitoring/deployed-agents">
+                Deployed Agents
+              </Link>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <form className="flex flex-wrap items-end gap-3" method="get">
           {queryParam ? (

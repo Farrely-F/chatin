@@ -23,7 +23,7 @@ export default async function DeployedAgents() {
           <div className="flex flex-col gap-2 border rounded-lg items-center justify-center h-[80%] p-4">
             <MessageCircle className="text-muted-foreground block size-18" />
             <p className="text-muted-foreground text-sm">
-              Create your first agent
+              No agents deployed yet. Deploy an agent to see it here!
             </p>
           </div>
         ) : (
