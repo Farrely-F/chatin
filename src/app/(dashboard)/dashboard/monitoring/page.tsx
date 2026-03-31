@@ -114,6 +114,10 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatRatio(value: number): string {
+  return `${value.toFixed(2)}x`;
+}
+
 export default async function MonitoringPage({
   searchParams,
 }: {
@@ -187,6 +191,9 @@ export default async function MonitoringPage({
     return searchTarget.includes(queryLower);
   });
 
+  const topAgentEfficiency = monitoring.agentEfficiency.slice(0, 10);
+  const topProviderModels = monitoring.providerModelComparison.slice(0, 10);
+
   return (
     <PageLayout className="container mx-auto space-y-8">
       <PageLayoutHeader className="space-y-3 pt-10">
@@ -237,8 +244,8 @@ export default async function MonitoringPage({
         </form>
       </PageLayoutHeader>
 
-      <PageLayoutContent className="gap-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <PageLayoutContent className="gap-4 gap-y-8">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <Card>
             <CardHeader className="space-y-1 pb-0">
               <CardDescription>Total Agent Calls</CardDescription>
@@ -297,6 +304,68 @@ export default async function MonitoringPage({
               </p>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="space-y-1 pb-0">
+              <CardDescription>Unique Request Users</CardDescription>
+              <CardTitle>
+                {monitoring.summary.uniqueRequestUsers.toLocaleString()}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-xs">
+                Authenticated usage footprint
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="space-y-1 pb-0">
+              <CardDescription>p99 Tokens/Request</CardDescription>
+              <CardTitle>
+                {Math.round(
+                  monitoring.anomalySignals.tokenP99,
+                ).toLocaleString()}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-xs">
+                Outlier requests:{" "}
+                {monitoring.anomalySignals.highTokenCallCount.toLocaleString()}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-3">
+            <CardHeader className="space-y-1 pb-0">
+              <CardDescription>Error Rate</CardDescription>
+              <CardTitle>
+                {formatPercent(monitoring.summary.errorRate)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-xs">
+                From logged failures in selected range
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-3">
+            <CardHeader className="space-y-1 pb-0">
+              <CardDescription>Average Latency</CardDescription>
+              <CardTitle>
+                {Math.round(
+                  monitoring.summary.averageLatencyMs,
+                ).toLocaleString()}{" "}
+                ms
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-xs">
+                Includes only rows with latency telemetry
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <UsageCharts
@@ -312,7 +381,273 @@ export default async function MonitoringPage({
             totalTokens: item.totalTokens,
             costUsd: item.costUsd,
           }))}
+          hourlyData={monitoring.hourlyUsage.map((item) => ({
+            hour: item.hour,
+            calls: item.calls,
+          }))}
         />
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Anomaly Signals</CardTitle>
+              <CardDescription>
+                Automatic checks for token outliers, cost spikes, cache
+                regressions, and traffic bursts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant={
+                    monitoring.anomalySignals.rpmSpikeDetected
+                      ? "destructive"
+                      : "secondary"
+                  }
+                >
+                  RPM Spike{" "}
+                  {monitoring.anomalySignals.rpmSpikeDetected
+                    ? "Detected"
+                    : "Normal"}
+                </Badge>
+                <Badge
+                  variant={
+                    monitoring.fxRateDrift.exceedsThreshold
+                      ? "destructive"
+                      : "secondary"
+                  }
+                >
+                  FX Drift{" "}
+                  {monitoring.fxRateDrift.exceedsThreshold ? "> 5%" : "Stable"}
+                </Badge>
+              </div>
+              <div className="grid gap-2 text-sm md:grid-cols-2">
+                <p>
+                  Peak req/min:{" "}
+                  <strong>
+                    {monitoring.anomalySignals.peakRequestsPerMinute.toLocaleString()}
+                  </strong>
+                </p>
+                <p>
+                  Avg req/min:{" "}
+                  <strong>
+                    {monitoring.anomalySignals.avgRequestsPerMinute.toFixed(2)}
+                  </strong>
+                </p>
+                <p>
+                  RPM spike ratio:{" "}
+                  <strong>
+                    {formatRatio(
+                      monitoring.anomalySignals.requestsPerMinuteSpikeRatio,
+                    )}
+                  </strong>
+                </p>
+                <p>
+                  High output ratio (&gt;5x):{" "}
+                  <strong>
+                    {monitoring.anomalySignals.highOutputRatioCallCount.toLocaleString()}
+                  </strong>
+                </p>
+                <p>
+                  High cost requests:{" "}
+                  <strong>
+                    {monitoring.anomalySignals.highCostCallCount.toLocaleString()}
+                  </strong>
+                </p>
+                <p>
+                  Zero-cache calls:{" "}
+                  <strong>
+                    {monitoring.anomalySignals.zeroCacheCallCount.toLocaleString()}
+                  </strong>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Source and FX Health</CardTitle>
+              <CardDescription>
+                Source distribution and exchange-rate consistency for USD to IDR
+                conversion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {monitoring.sourceVolume.map((source) => (
+                  <Badge key={source.source} variant="outline">
+                    {source.source}: {source.calls.toLocaleString()}
+                  </Badge>
+                ))}
+              </div>
+              <div className="grid gap-2 text-sm md:grid-cols-2">
+                <p>
+                  Baseline FX:{" "}
+                  <strong>
+                    {monitoring.fxRateDrift.baselineFx.toLocaleString()}
+                  </strong>
+                </p>
+                <p>
+                  Avg FX:{" "}
+                  <strong>{monitoring.fxRateDrift.averageFx.toFixed(2)}</strong>
+                </p>
+                <p>
+                  Min FX:{" "}
+                  <strong>{monitoring.fxRateDrift.minFx.toFixed(2)}</strong>
+                </p>
+                <p>
+                  Max FX:{" "}
+                  <strong>{monitoring.fxRateDrift.maxFx.toFixed(2)}</strong>
+                </p>
+                <p>
+                  Drift:{" "}
+                  <strong>
+                    {formatPercent(monitoring.fxRateDrift.deviationRate)}
+                  </strong>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent Efficiency (Top 10 by Cost)</CardTitle>
+              <CardDescription>
+                Cache efficiency, verbosity ratio, token outliers, and blended
+                token pricing per agent.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topAgentEfficiency.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No efficiency data in this date range.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Agent</TableHead>
+                      <TableHead>Calls</TableHead>
+                      <TableHead>Cache Hit</TableHead>
+                      <TableHead>Output/Input</TableHead>
+                      <TableHead>p95 Tokens</TableHead>
+                      <TableHead>Cost/1k</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topAgentEfficiency.map((row) => (
+                      <TableRow key={row.agentId}>
+                        <TableCell>{row.agentName}</TableCell>
+                        <TableCell>{row.calls.toLocaleString()}</TableCell>
+                        <TableCell>{formatPercent(row.cacheHitRate)}</TableCell>
+                        <TableCell>{formatRatio(row.outputRatio)}</TableCell>
+                        <TableCell>
+                          {Math.round(row.p95Tokens).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrencyUsd(row.costPer1kTokensUsd)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Provider and Model Comparison (Top 10)</CardTitle>
+              <CardDescription>
+                Compare request volume, average token size, and spend by
+                provider-model pair.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topProviderModels.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No provider-model data in this date range.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead>Requests</TableHead>
+                      <TableHead>Avg Tokens</TableHead>
+                      <TableHead>Avg Cost</TableHead>
+                      <TableHead>Total Cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topProviderModels.map((row) => (
+                      <TableRow key={`${row.provider}-${row.modelId}`}>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {row.provider}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{row.model}</TableCell>
+                        <TableCell>{row.requests.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {Math.round(row.avgTokens).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrencyUsd(row.avgCostUsd)}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrencyUsd(row.totalCostUsd)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Users by Spend</CardTitle>
+            <CardDescription>
+              Highest spending authenticated users in the selected range.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {monitoring.topUsersBySpend.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No authenticated user spend in this date range.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Requests</TableHead>
+                    <TableHead>Total Tokens</TableHead>
+                    <TableHead>Spend (USD)</TableHead>
+                    <TableHead>Spend (IDR)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monitoring.topUsersBySpend.map((row) => (
+                    <TableRow key={row.requestUserId}>
+                      <TableCell>{row.requestUserId}</TableCell>
+                      <TableCell>{row.requests.toLocaleString()}</TableCell>
+                      <TableCell>{row.totalTokens.toLocaleString()}</TableCell>
+                      <TableCell>{formatCurrencyUsd(row.spendUsd)}</TableCell>
+                      <TableCell>{formatCurrencyIdr(row.spendIdr)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

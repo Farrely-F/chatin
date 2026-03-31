@@ -163,6 +163,25 @@ function getBilledCostUsd(providerUsage: ProviderUsage | undefined) {
   return cost;
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  if (isRecord(error)) {
+    const code = error.code;
+    if (typeof code === "string" && code.trim().length > 0) {
+      return code.trim().slice(0, 64);
+    }
+
+    if (typeof code === "number" && Number.isFinite(code)) {
+      return String(code).slice(0, 64);
+    }
+  }
+
+  if (error instanceof Error && error.name.trim().length > 0) {
+    return error.name.trim().slice(0, 64);
+  }
+
+  return "unknown_error";
+}
+
 export function getLLMProvider(
   model: Pick<ModelDetails, "name" | "provider"> | null,
 ) {
@@ -417,6 +436,10 @@ export function generateStreamResponse({
     requestUserId,
   });
 
+  const startedAt = Date.now();
+  let streamErrorCode: string | undefined;
+  let streamHadError = false;
+
   const response = streamText({
     maxRetries: 0,
     stopWhen: stepCountIs(5),
@@ -436,7 +459,11 @@ export function generateStreamResponse({
     providerOptions,
 
     topP: agentConfig.topP || 1,
-    onError: (error) => console.error(error),
+    onError: (error) => {
+      streamHadError = true;
+      streamErrorCode = getErrorCode(error.error);
+      console.error(error);
+    },
     onFinish: async ({ usage, providerMetadata }) => {
       const providerUsage = getProviderUsage(
         agentConfig.model.provider,
@@ -460,6 +487,9 @@ export function generateStreamResponse({
         provider: agentConfig.model.provider,
         requestUserId,
         source: "stream",
+        isError: streamHadError,
+        errorCode: streamErrorCode,
+        latencyMs: Date.now() - startedAt,
         inputTokens,
         outputTokens,
         cachedInputTokens,
@@ -499,95 +529,117 @@ export async function generateTextResponse({
     requestUserId,
   });
 
-  const response = await generateText({
-    maxRetries: 0,
-    stopWhen: stepCountIs(5),
-    model,
-    system: generateSysPrompt(
-      agentConfig,
-      feedbackGuidance,
-      getLatestUserQuestion(messages),
-    ),
-    messages: toSafeModelMessages(messages),
-    temperature: agentConfig.temperature || 0.7,
+  const startedAt = Date.now();
 
-    tools: shouldUseRetrievalTools
-      ? llmToolsConfig({ agentId, agentConfig })
-      : undefined,
-    toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
-    providerOptions,
+  try {
+    const response = await generateText({
+      maxRetries: 0,
+      stopWhen: stepCountIs(5),
+      model,
+      system: generateSysPrompt(
+        agentConfig,
+        feedbackGuidance,
+        getLatestUserQuestion(messages),
+      ),
+      messages: toSafeModelMessages(messages),
+      temperature: agentConfig.temperature || 0.7,
 
-    topP: agentConfig.topP || 1,
-  });
+      tools: shouldUseRetrievalTools
+        ? llmToolsConfig({ agentId, agentConfig })
+        : undefined,
+      toolChoice: shouldUseRetrievalTools ? "auto" : undefined,
+      providerOptions,
 
-  const usage =
-    (
-      response as {
-        usage?: {
-          inputTokens?: number;
-          outputTokens?: number;
-          totalTokens?: number;
-          cachedInputTokens?: number;
-        };
-        response?: {
+      topP: agentConfig.topP || 1,
+    });
+
+    const usage =
+      (
+        response as {
           usage?: {
             inputTokens?: number;
             outputTokens?: number;
             totalTokens?: number;
             cachedInputTokens?: number;
           };
-        };
-      }
-    ).usage ??
-    (
-      response as {
-        response?: {
-          usage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            totalTokens?: number;
-            cachedInputTokens?: number;
+          response?: {
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              cachedInputTokens?: number;
+            };
           };
-        };
-      }
-    ).response?.usage;
+        }
+      ).usage ??
+      (
+        response as {
+          response?: {
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              cachedInputTokens?: number;
+            };
+          };
+        }
+      ).response?.usage;
 
-  const responseProviderMetadata =
-    (
-      response as {
-        providerMetadata?: unknown;
-      }
-    ).providerMetadata ??
-    (
-      response as {
-        response?: {
+    const responseProviderMetadata =
+      (
+        response as {
           providerMetadata?: unknown;
-        };
-      }
-    ).response?.providerMetadata;
+        }
+      ).providerMetadata ??
+      (
+        response as {
+          response?: {
+            providerMetadata?: unknown;
+          };
+        }
+      ).response?.providerMetadata;
 
-  const providerUsage = getProviderUsage(
-    agentConfig.model.provider,
-    responseProviderMetadata,
-  );
+    const providerUsage = getProviderUsage(
+      agentConfig.model.provider,
+      responseProviderMetadata,
+    );
 
-  await logAgentUsage({
-    agentId,
-    modelId: agentConfig.model.id,
-    provider: agentConfig.model.provider,
-    requestUserId,
-    source: "text",
-    inputTokens: providerUsage?.promptTokens ?? usage?.inputTokens ?? 0,
-    outputTokens: providerUsage?.completionTokens ?? usage?.outputTokens ?? 0,
-    cachedInputTokens:
-      providerUsage?.promptTokensDetails?.cachedTokens ??
-      usage?.cachedInputTokens ??
-      0,
-    totalTokens: providerUsage?.totalTokens ?? usage?.totalTokens,
-    billedCostUsd: getBilledCostUsd(providerUsage),
-  });
+    await logAgentUsage({
+      agentId,
+      modelId: agentConfig.model.id,
+      provider: agentConfig.model.provider,
+      requestUserId,
+      source: "text",
+      isError: false,
+      latencyMs: Date.now() - startedAt,
+      inputTokens: providerUsage?.promptTokens ?? usage?.inputTokens ?? 0,
+      outputTokens: providerUsage?.completionTokens ?? usage?.outputTokens ?? 0,
+      cachedInputTokens:
+        providerUsage?.promptTokensDetails?.cachedTokens ??
+        usage?.cachedInputTokens ??
+        0,
+      totalTokens: providerUsage?.totalTokens ?? usage?.totalTokens,
+      billedCostUsd: getBilledCostUsd(providerUsage),
+    });
 
-  return response;
+    return response;
+  } catch (error) {
+    await logAgentUsage({
+      agentId,
+      modelId: agentConfig.model.id,
+      provider: agentConfig.model.provider,
+      requestUserId,
+      source: "text",
+      isError: true,
+      errorCode: getErrorCode(error),
+      latencyMs: Date.now() - startedAt,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+    });
+
+    throw error;
+  }
 }
 
 function llmToolsConfig({

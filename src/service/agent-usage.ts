@@ -11,6 +11,12 @@ type UsageInput = {
   modelId: string;
   provider: string;
   requestUserId?: string;
+  sessionId?: string;
+  agentVersion?: string;
+  retryCount?: number;
+  isError?: boolean;
+  errorCode?: string;
+  latencyMs?: number;
   source: UsageSource;
   inputTokens: number;
   outputTokens: number;
@@ -152,6 +158,9 @@ export async function logAgentUsage(input: UsageInput) {
   const inputTokens = normalizeCount(input.inputTokens);
   const outputTokens = normalizeCount(input.outputTokens);
   const cachedInputTokens = normalizeCount(input.cachedInputTokens);
+  const retryCount = normalizeCount(input.retryCount);
+  const latencyMs =
+    input.latencyMs === undefined ? null : normalizeCount(input.latencyMs);
   const totalTokens = normalizeCount(
     input.totalTokens ?? inputTokens + outputTokens,
   );
@@ -173,6 +182,12 @@ export async function logAgentUsage(input: UsageInput) {
       agentId: input.agentId,
       modelId: input.modelId,
       requestUserId: input.requestUserId,
+      sessionId: input.sessionId,
+      agentVersion: input.agentVersion,
+      retryCount,
+      isError: Boolean(input.isError),
+      errorCode: input.errorCode,
+      latencyMs,
       source: input.source,
       provider: input.provider,
       inputTokens,

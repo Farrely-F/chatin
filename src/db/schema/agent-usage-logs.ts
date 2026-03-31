@@ -1,4 +1,5 @@
 import {
+  boolean,
   integer,
   numeric,
   pgTable,
@@ -22,6 +23,12 @@ export const agentUsageLogs = pgTable("agent_usage_logs", {
   requestUserId: text("request_user_id"),
   source: varchar("source", { length: 32 }).notNull().default("stream"),
   provider: varchar("provider", { length: 100 }).notNull(),
+  sessionId: varchar("session_id", { length: 128 }),
+  agentVersion: varchar("agent_version", { length: 64 }),
+  retryCount: integer("retry_count").notNull().default(0),
+  isError: boolean("is_error").notNull().default(false),
+  errorCode: varchar("error_code", { length: 64 }),
+  latencyMs: integer("latency_ms"),
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
   cachedInputTokens: integer("cached_input_tokens").notNull().default(0),

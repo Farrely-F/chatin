@@ -39,6 +39,11 @@ type DailyData = {
   costUsd: number;
 };
 
+type HourlyData = {
+  hour: number;
+  calls: number;
+};
+
 const providerChartConfig = {
   costUsd: {
     label: "Cost (USD)",
@@ -61,6 +66,13 @@ const trendChartConfig = {
   },
 } satisfies ChartConfig;
 
+const hourlyChartConfig = {
+  calls: {
+    label: "Calls",
+    color: "hsl(221 83% 53%)",
+  },
+} satisfies ChartConfig;
+
 function formatShortDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
 
@@ -73,9 +85,11 @@ function formatShortDate(value: string) {
 export function UsageCharts({
   providerData,
   dailyData,
+  hourlyData,
 }: Readonly<{
   providerData: ProviderData[];
   dailyData: DailyData[];
+  hourlyData: HourlyData[];
 }>) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -181,6 +195,45 @@ export function UsageCharts({
                   dot={false}
                 />
               </LineChart>
+            </ChartContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Hourly Request Distribution</CardTitle>
+          <CardDescription>
+            Request count by hour to identify peak traffic windows.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {hourlyData.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No usage data found.
+            </p>
+          ) : (
+            <ChartContainer
+              config={hourlyChartConfig}
+              className="h-72 min-h-[18rem] w-full"
+            >
+              <BarChart data={hourlyData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="hour"
+                  tickFormatter={(value) =>
+                    `${String(value).padStart(2, "0")}:00`
+                  }
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis tickLine={false} axisLine={false} />
+                <ChartTooltip
+                  content={<ChartTooltipContent indicator="dot" />}
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar dataKey="calls" fill="var(--color-calls)" radius={4} />
+              </BarChart>
             </ChartContainer>
           )}
         </CardContent>

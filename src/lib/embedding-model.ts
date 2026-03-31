@@ -152,6 +152,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  if (isRecord(error)) {
+    const code = error.code;
+    if (typeof code === "string" && code.trim().length > 0) {
+      return code.trim().slice(0, 64);
+    }
+
+    if (typeof code === "number" && Number.isFinite(code)) {
+      return String(code).slice(0, 64);
+    }
+  }
+
+  if (error instanceof Error && error.name.trim().length > 0) {
+    return error.name.trim().slice(0, 64);
+  }
+
+  return "unknown_error";
+}
+
 function extractEmbeddingUsage(result: unknown, provider: EmbeddingProvider) {
   const usage =
     isRecord(result) && isRecord(result.usage) ? result.usage : null;
@@ -354,6 +373,11 @@ async function logEmbeddingUsage(
   provider: EmbeddingProvider,
   modelName: string,
   configuredModelId: string | null,
+  telemetry?: {
+    latencyMs?: number;
+    isError?: boolean;
+    errorCode?: string;
+  },
 ) {
   if (!context.agentId) {
     return;
@@ -380,6 +404,9 @@ async function logEmbeddingUsage(
     provider,
     requestUserId: context.requestUserId,
     source: context.source ?? "embedding",
+    isError: telemetry?.isError,
+    errorCode: telemetry?.errorCode,
+    latencyMs: telemetry?.latencyMs,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     cachedInputTokens: usage.cachedInputTokens,
@@ -399,25 +426,52 @@ export const generateEmbeddings = async (
 
   const provider = await getActiveEmbeddingProvider();
   const activeModel = await getActiveEmbeddingModelConfig(provider);
+  const startedAt = Date.now();
 
-  const result = await embed({
-    model: getEmbeddingModelByName(provider, activeModel.modelName),
-    value: text,
-    providerOptions: getEmbeddingProviderOptions(provider),
-  });
+  try {
+    const result = await embed({
+      model: getEmbeddingModelByName(provider, activeModel.modelName),
+      value: text,
+      providerOptions: getEmbeddingProviderOptions(provider),
+    });
 
-  const embedding = normalizeDimension(result.embedding);
+    const embedding = normalizeDimension(result.embedding);
 
-  await logEmbeddingUsage(
-    context,
-    extractEmbeddingUsage(result, provider),
-    provider,
-    activeModel.modelName,
-    activeModel.modelId,
-  );
+    await logEmbeddingUsage(
+      context,
+      extractEmbeddingUsage(result, provider),
+      provider,
+      activeModel.modelName,
+      activeModel.modelId,
+      {
+        isError: false,
+        latencyMs: Date.now() - startedAt,
+      },
+    );
 
-  embeddingCache.set(text, embedding);
-  return embedding;
+    embeddingCache.set(text, embedding);
+    return embedding;
+  } catch (error) {
+    await logEmbeddingUsage(
+      context,
+      {
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        totalTokens: 0,
+      },
+      provider,
+      activeModel.modelName,
+      activeModel.modelId,
+      {
+        isError: true,
+        errorCode: getErrorCode(error),
+        latencyMs: Date.now() - startedAt,
+      },
+    );
+
+    throw error;
+  }
 };
 
 const MAX_BATCH_SIZE = 100;
@@ -456,46 +510,73 @@ export const generateMultipleEmbeddings = async (
 
   const provider = await getActiveEmbeddingProvider();
   const activeModel = await getActiveEmbeddingModelConfig(provider);
+  const startedAt = Date.now();
 
-  const batches = chunkArray(uncachedTexts, MAX_BATCH_SIZE);
-  const newEmbeddings: number[][] = new Array(uncachedTexts.length);
+  try {
+    const batches = chunkArray(uncachedTexts, MAX_BATCH_SIZE);
+    const newEmbeddings: number[][] = new Array(uncachedTexts.length);
 
-  let batchOffset = 0;
-  for (const batch of batches) {
-    const result = await embedMany({
-      model: getEmbeddingModelByName(provider, activeModel.modelName),
-      values: batch,
-      providerOptions: getEmbeddingProviderOptions(provider),
-    });
+    let batchOffset = 0;
+    for (const batch of batches) {
+      const result = await embedMany({
+        model: getEmbeddingModelByName(provider, activeModel.modelName),
+        values: batch,
+        providerOptions: getEmbeddingProviderOptions(provider),
+      });
 
+      await logEmbeddingUsage(
+        context,
+        extractEmbeddingUsage(result, provider),
+        provider,
+        activeModel.modelName,
+        activeModel.modelId,
+        {
+          isError: false,
+          latencyMs: Date.now() - startedAt,
+        },
+      );
+
+      for (let i = 0; i < batch.length; i++) {
+        const uncachedIdx = batchOffset + i;
+        const normalizedEmbedding = normalizeDimension(result.embeddings[i]);
+        newEmbeddings[uncachedIdx] = normalizedEmbedding;
+        embeddingCache.set(batch[i], normalizedEmbedding);
+      }
+      batchOffset += batch.length;
+    }
+
+    const finalResults: number[][] = new Array(texts.length);
+
+    for (let i = 0; i < cachedIndices.length; i++) {
+      finalResults[cachedIndices[i]] = normalizeDimension(cachedEmbeddings[i]);
+    }
+
+    for (let i = 0; i < uncachedIndices.length; i++) {
+      finalResults[uncachedIndices[i]] = newEmbeddings[i];
+    }
+
+    return finalResults;
+  } catch (error) {
     await logEmbeddingUsage(
       context,
-      extractEmbeddingUsage(result, provider),
+      {
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        totalTokens: 0,
+      },
       provider,
       activeModel.modelName,
       activeModel.modelId,
+      {
+        isError: true,
+        errorCode: getErrorCode(error),
+        latencyMs: Date.now() - startedAt,
+      },
     );
 
-    for (let i = 0; i < batch.length; i++) {
-      const uncachedIdx = batchOffset + i;
-      const normalizedEmbedding = normalizeDimension(result.embeddings[i]);
-      newEmbeddings[uncachedIdx] = normalizedEmbedding;
-      embeddingCache.set(batch[i], normalizedEmbedding);
-    }
-    batchOffset += batch.length;
+    throw error;
   }
-
-  const finalResults: number[][] = new Array(texts.length);
-
-  for (let i = 0; i < cachedIndices.length; i++) {
-    finalResults[cachedIndices[i]] = normalizeDimension(cachedEmbeddings[i]);
-  }
-
-  for (let i = 0; i < uncachedIndices.length; i++) {
-    finalResults[uncachedIndices[i]] = newEmbeddings[i];
-  }
-
-  return finalResults;
 };
 
 export {
