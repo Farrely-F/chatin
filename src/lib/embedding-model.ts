@@ -2,11 +2,11 @@ import { db } from "@/db";
 import { aiModels, systemSettings } from "@/db/schema";
 import { logAgentUsage } from "@/service/agent-usage";
 import { google } from "@ai-sdk/google";
-import { openrouter } from "@openrouter/ai-sdk-provider";
 import { embed, embedMany } from "ai";
 import { and, desc, eq } from "drizzle-orm";
 
 import { embeddingCache } from "./embedding-cache";
+import { openrouter } from "./llm";
 
 const EMBEDDING_DIMENSIONS = 768;
 

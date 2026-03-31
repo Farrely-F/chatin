@@ -68,7 +68,7 @@ const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY!,
 });
 
-const openrouter = createOpenRouter({
+export const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
   headers: {
     "HTTP-Referer": "https://chatto.co.id",

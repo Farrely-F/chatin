@@ -9,11 +9,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import AgentKnowledgebasesInspector from "@/features/agents/agent-knowledgebases-inspector";
+import KnowledgebaseChunkInspector from "@/features/agents/knowledgebase-chunk-inspector";
 import { truncateCharacters } from "@/lib/utils";
 import { AgentDetails } from "@/service/agents";
 import { KnowledgeBase } from "@/service/knowledgebases";
 import { ModelDetails } from "@/service/model";
-import { Eye } from "lucide-react";
+import { Eye, Network } from "lucide-react";
 import { useState } from "react";
 
 import CrawlURL from "../knowledgebases/crawl-url";
@@ -27,12 +29,12 @@ export default function AgentKnowledgebases({
   agentDetails,
   models,
   userId,
-}: {
+}: Readonly<{
   agentKnowledgeBases: KnowledgeBase[];
   agentDetails: AgentDetails;
   models: ModelDetails[];
   userId: string;
-}) {
+}>) {
   const [documentPreview, setDocumentPreview] = useState<KnowledgeBase | null>(
     null,
   );
@@ -49,6 +51,20 @@ export default function AgentKnowledgebases({
           </TabsList>
           <Separator className="my-2" />
           <TabsContent value="knowledgebases" className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Inspect across all sources attached to this agent.
+              </p>
+              <AgentKnowledgebasesInspector
+                agentId={agentDetails.id}
+                knowledgeBases={agentKnowledgeBases}
+              >
+                <Button variant={"outline"}>
+                  Inspect
+                  <Network />
+                </Button>
+              </AgentKnowledgebasesInspector>
+            </div>
             {agentKnowledgeBases.length > 0 ? (
               agentKnowledgeBases.map((source) => (
                 <div
@@ -76,6 +92,15 @@ export default function AgentKnowledgebases({
                       </p>
                     </div>
                     <div className="flex gap-2 justify-end">
+                      <KnowledgebaseChunkInspector
+                        agentId={agentDetails.id}
+                        knowledgeBase={source}
+                      >
+                        <Button size={"icon"} variant={"outline"}>
+                          <Network />
+                        </Button>
+                      </KnowledgebaseChunkInspector>
+
                       {source.sourceType === "pdf" && (
                         <Button
                           onClick={() => setDocumentPreview(source)}
