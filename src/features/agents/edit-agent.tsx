@@ -202,6 +202,7 @@ export default function EditAgenConfig({
                 <FormControl>
                   <GroupedModelSelect
                     models={models}
+                    filterModelType="language"
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   />

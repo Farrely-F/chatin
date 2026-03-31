@@ -15,25 +15,41 @@ import { useMemo } from "react";
 
 export default function GroupedModelSelect({
   models,
+  filterModelType,
   ...props
-}: { models: ModelDetails[] } & React.ComponentProps<typeof Select>) {
+}: {
+  models: ModelDetails[];
+  filterModelType?: "language" | "embedding";
+} & React.ComponentProps<typeof Select>) {
+  const filteredModels = useMemo(() => {
+    if (!filterModelType) {
+      return models;
+    }
+
+    return models.filter((model) => model.modelType === filterModelType);
+  }, [filterModelType, models]);
+
   const groupedModels = useMemo(() => {
-    if (!Array.isArray(models) || models.length === 0) return {};
+    if (!Array.isArray(filteredModels) || filteredModels.length === 0)
+      return {};
 
-    return models.reduce<Record<string, ModelDetails[]>>((acc, model) => {
-      if (!model || typeof model !== "object") return acc;
+    return filteredModels.reduce<Record<string, ModelDetails[]>>(
+      (acc, model) => {
+        if (!model || typeof model !== "object") return acc;
 
-      const rawProvider = model.provider?.trim() || "unknown";
-      const normalizedProvider = rawProvider.toLowerCase();
+        const rawProvider = model.provider?.trim() || "unknown";
+        const normalizedProvider = rawProvider.toLowerCase();
 
-      if (!acc[normalizedProvider]) {
-        acc[normalizedProvider] = [];
-      }
+        if (!acc[normalizedProvider]) {
+          acc[normalizedProvider] = [];
+        }
 
-      acc[normalizedProvider].push(model);
-      return acc;
-    }, {});
-  }, [models]);
+        acc[normalizedProvider].push(model);
+        return acc;
+      },
+      {},
+    );
+  }, [filteredModels]);
 
   const hasGroups = Object.keys(groupedModels).length > 0;
 

@@ -31,8 +31,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ModelDeleteImpact, ModelDetails } from "@/service/model";
-import { Edit, Loader2, Search, Trash2 } from "lucide-react";
+import {
+  Braces,
+  Edit,
+  FileImage,
+  Loader2,
+  Radio,
+  Search,
+  Toolbox,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -61,6 +75,9 @@ export function ModelTable({
   const [isInspectingDelete, setIsInspectingDelete] = useState(false);
   const [replacementModelId, setReplacementModelId] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [modelTypeFilter, setModelTypeFilter] = useState<
+    "all" | "language" | "embedding"
+  >("all");
   const [availabilityFilter, setAvailabilityFilter] = useState<
     "all" | "available" | "unavailable"
   >("all");
@@ -124,13 +141,21 @@ export function ModelTable({
       selectedProviders.includes(model.provider) ||
       selectedProviders.includes("all");
 
+    const matchesModelType =
+      modelTypeFilter === "all" || model.modelType === modelTypeFilter;
+
     // Availability filter
     const matchesAvailability =
       availabilityFilter === "all" ||
       (availabilityFilter === "available" && model.isAvailable) ||
       (availabilityFilter === "unavailable" && !model.isAvailable);
 
-    return matchesSearch && matchesProvider && matchesAvailability;
+    return (
+      matchesSearch &&
+      matchesProvider &&
+      matchesModelType &&
+      matchesAvailability
+    );
   });
 
   const formatDate = (date: Date) => {
@@ -207,6 +232,23 @@ export function ModelTable({
               </SelectGroup>
             </SelectContent>
           </Select>
+          <Select
+            onValueChange={(value) =>
+              setModelTypeFilter(value as "all" | "language" | "embedding")
+            }
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Model Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Model Types</SelectLabel>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="language">Language</SelectItem>
+                <SelectItem value="embedding">Embedding</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -216,6 +258,7 @@ export function ModelTable({
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Provider</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="hidden lg:table-cell">
                 Input / 1M (USD)
               </TableHead>
@@ -236,7 +279,7 @@ export function ModelTable({
             {filteredModels.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No models found
@@ -245,8 +288,86 @@ export function ModelTable({
             ) : (
               filteredModels.map((model) => (
                 <TableRow key={model.id}>
-                  <TableCell className="font-medium">{model.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div>{model.name}</div>
+                    {model.modelType === "language" ? (
+                      <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                model.supportsImageInput
+                                  ? "text-muted-foreground"
+                                  : "opacity-40"
+                              }
+                            >
+                              <FileImage className="size-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Image Input</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                model.supportsToolUse
+                                  ? "text-muted-foreground"
+                                  : "opacity-40"
+                              }
+                            >
+                              <Toolbox className="size-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Tool Use</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                model.supportsToolStreaming
+                                  ? "text-muted-foreground"
+                                  : "opacity-40"
+                              }
+                            >
+                              <Radio className="size-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Tool Streaming</p>
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                model.supportsObjectGeneration
+                                  ? "text-muted-foreground"
+                                  : "opacity-40"
+                              }
+                            >
+                              <Braces className="size-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p>Object Generation</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell className="capitalize">{model.provider}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize">
+                      {model.modelType}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="hidden lg:table-cell font-mono text-xs">
                     {formatUsd(model.inputCostPer1mTokens)}
                   </TableCell>

@@ -1,3 +1,4 @@
+import { logAgentUsage } from "@/service/agent-usage";
 import { generateObject } from "ai";
 import { z } from "zod/v4";
 
@@ -71,20 +72,74 @@ export function isAgenticParseInvalidProviderResponseError(
 }
 
 type AgenticParseModel = {
+  id: string;
   name: string;
   provider: string;
 };
 
+type ProviderUsage = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  promptTokensDetails?: {
+    cachedTokens?: number;
+  };
+  cost?: number;
+  costDetails?: {
+    upstreamInferenceCost?: number;
+  };
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getProviderUsage(
+  provider: string,
+  providerMetadata: unknown,
+): ProviderUsage | undefined {
+  if (!isRecord(providerMetadata)) {
+    return undefined;
+  }
+
+  const providerEntry = providerMetadata[provider];
+  if (!isRecord(providerEntry)) {
+    return undefined;
+  }
+
+  const usage = providerEntry.usage;
+  if (!isRecord(usage)) {
+    return undefined;
+  }
+
+  return usage as ProviderUsage;
+}
+
+function getBilledCostUsd(providerUsage: ProviderUsage | undefined) {
+  const cost =
+    providerUsage?.costDetails?.upstreamInferenceCost ?? providerUsage?.cost;
+
+  if (!Number.isFinite(cost) || (cost ?? 0) < 0) {
+    return undefined;
+  }
+
+  return cost;
+}
+
 export async function parsePdfWithAgent(
   pdfBuffer: Buffer,
   parseModel: AgenticParseModel,
+  context: {
+    agentId: string;
+    requestUserId?: string;
+  },
 ) {
   console.log("🤖 Parsing PDF with Agent");
 
   const model = getLLMProvider(parseModel);
 
   try {
-    const { object } = await generateObject({
+    const result = await generateObject({
       model,
       system: DEFAULT_EXTRACTION_PROMPT,
       schema: z.object({
@@ -109,11 +164,78 @@ export async function parsePdfWithAgent(
       ],
     });
 
-    if (!object) {
+    const usage =
+      (
+        result as {
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            cachedInputTokens?: number;
+          };
+          response?: {
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              cachedInputTokens?: number;
+            };
+          };
+        }
+      ).usage ??
+      (
+        result as {
+          response?: {
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              cachedInputTokens?: number;
+            };
+          };
+        }
+      ).response?.usage;
+
+    const providerMetadata =
+      (
+        result as {
+          providerMetadata?: unknown;
+        }
+      ).providerMetadata ??
+      (
+        result as {
+          response?: {
+            providerMetadata?: unknown;
+          };
+        }
+      ).response?.providerMetadata;
+
+    const providerUsage = getProviderUsage(
+      parseModel.provider,
+      providerMetadata,
+    );
+
+    await logAgentUsage({
+      agentId: context.agentId,
+      modelId: parseModel.id,
+      provider: parseModel.provider,
+      requestUserId: context.requestUserId,
+      source: "tool",
+      inputTokens: providerUsage?.promptTokens ?? usage?.inputTokens ?? 0,
+      outputTokens: providerUsage?.completionTokens ?? usage?.outputTokens ?? 0,
+      cachedInputTokens:
+        providerUsage?.promptTokensDetails?.cachedTokens ??
+        usage?.cachedInputTokens ??
+        0,
+      totalTokens: providerUsage?.totalTokens ?? usage?.totalTokens,
+      billedCostUsd: getBilledCostUsd(providerUsage),
+    });
+
+    if (!result.object) {
       throw new Error("Failed to parse PDF with agent");
     }
 
-    const extractedContent = object.content.trim();
+    const extractedContent = result.object.content.trim();
     const sanitized = sanitizeContent(extractedContent);
 
     if (sanitized.hadToSanitize) {

@@ -37,7 +37,9 @@ import { toast } from "sonner";
 
 import GroupedModelSelect from "../models-config/model-selector";
 
-export default function AgentCreation({ models }: { models: ModelDetails[] }) {
+export default function AgentCreation({
+  models,
+}: Readonly<{ models: ModelDetails[] }>) {
   const { data: session } = useSession();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -128,6 +130,7 @@ export default function AgentCreation({ models }: { models: ModelDetails[] }) {
                     <GroupedModelSelect
                       onValueChange={field.onChange}
                       models={models}
+                      filterModelType="language"
                     />
                   </FormControl>
                   <FormMessage />

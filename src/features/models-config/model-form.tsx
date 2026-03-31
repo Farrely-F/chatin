@@ -18,6 +18,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -50,9 +57,12 @@ export function ModelForm({
     defaultValues: {
       name: "",
       provider: "",
+      modelType: "language",
       description: "",
       isAvailable: false,
       supportsImageInput: false,
+      supportsCustomDimensions: false,
+      supportsMultimodal: false,
       supportsToolUse: false,
       supportsToolStreaming: false,
       supportsObjectGeneration: false,
@@ -67,9 +77,12 @@ export function ModelForm({
         id: model.id,
         name: model.name,
         provider: model.provider,
+        modelType: model.modelType,
         description: model.description || "",
         isAvailable: model.isAvailable || false,
         supportsImageInput: model.supportsImageInput,
+        supportsCustomDimensions: model.supportsCustomDimensions,
+        supportsMultimodal: model.supportsMultimodal,
         supportsToolUse: model.supportsToolUse,
         supportsToolStreaming: model.supportsToolStreaming,
         supportsObjectGeneration: model.supportsObjectGeneration,
@@ -80,9 +93,12 @@ export function ModelForm({
       form.reset({
         name: "",
         provider: "",
+        modelType: "language",
         description: "",
         isAvailable: true,
         supportsImageInput: false,
+        supportsCustomDimensions: false,
+        supportsMultimodal: false,
         supportsToolUse: false,
         supportsToolStreaming: false,
         supportsObjectGeneration: false,
@@ -97,12 +113,24 @@ export function ModelForm({
       id: values.id || crypto.randomUUID(),
       name: values.name,
       provider: values.provider,
+      modelType: values.modelType,
       description: values.description || "",
       isAvailable: values.isAvailable,
-      supportsImageInput: values.supportsImageInput,
-      supportsToolUse: values.supportsToolUse,
-      supportsToolStreaming: values.supportsToolStreaming,
-      supportsObjectGeneration: values.supportsObjectGeneration,
+      supportsImageInput:
+        values.modelType === "language" ? values.supportsImageInput : false,
+      supportsCustomDimensions:
+        values.modelType === "embedding"
+          ? values.supportsCustomDimensions
+          : false,
+      supportsMultimodal: values.supportsMultimodal,
+      supportsToolUse:
+        values.modelType === "language" ? values.supportsToolUse : false,
+      supportsToolStreaming:
+        values.modelType === "language" ? values.supportsToolStreaming : false,
+      supportsObjectGeneration:
+        values.modelType === "language"
+          ? values.supportsObjectGeneration
+          : false,
       inputCostPer1mTokens: values.inputCostPer1mTokens,
       outputCostPer1mTokens: values.outputCostPer1mTokens,
     });
@@ -119,6 +147,8 @@ export function ModelForm({
 
     return "";
   };
+
+  const modelType = form.watch("modelType");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,6 +190,37 @@ export function ModelForm({
                   </FormControl>
                   <FormDescription>
                     The provider of the AI model (e.g., openai, anthropic)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="modelType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Model Type</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) =>
+                        field.onChange(value as "language" | "embedding")
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="language">Language</SelectItem>
+                        <SelectItem value="embedding">Embedding</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormDescription>
+                    Classify whether this model is used for text generation or
+                    vector embeddings.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -265,97 +326,153 @@ export function ModelForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="supportsImageInput"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Support Image Input
-                    </FormLabel>
-                    <FormDescription>
-                      Support image input for this model
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {modelType === "embedding" ? (
+              <>
+                <FormField
+                  control={form.control}
+                  name="supportsMultimodal"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Supports Multimodal
+                        </FormLabel>
+                        <FormDescription>
+                          Indicates this model can process multiple data
+                          modalities (for example text and image input).
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="supportsToolUse"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Support Tool Use
-                    </FormLabel>
-                    <FormDescription>
-                      Support tool use for this model
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="supportsCustomDimensions"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Supports Custom Dimensions
+                        </FormLabel>
+                        <FormDescription>
+                          Enable if this embedding model allows custom output
+                          dimensionality.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </>
+            ) : null}
 
-            <FormField
-              control={form.control}
-              name="supportsToolStreaming"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Support Tool Streaming
-                    </FormLabel>
-                    <FormDescription>
-                      Support tool streaming for this model
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {modelType === "language" ? (
+              <>
+                <FormField
+                  control={form.control}
+                  name="supportsImageInput"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Support Image Input
+                        </FormLabel>
+                        <FormDescription>
+                          Support image input for this model
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={modelType !== "language"}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="supportsToolUse"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Support Tool Use
+                        </FormLabel>
+                        <FormDescription>
+                          Support tool use for this model
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="supportsObjectGeneration"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Support Object Generation
-                    </FormLabel>
-                    <FormDescription>
-                      Support object generation for this model
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="supportsToolStreaming"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Support Tool Streaming
+                        </FormLabel>
+                        <FormDescription>
+                          Support tool streaming for this model
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="supportsObjectGeneration"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Support Object Generation
+                        </FormLabel>
+                        <FormDescription>
+                          Support object generation for this model
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </>
+            ) : null}
 
             <DialogFooter>
               <Button

@@ -67,7 +67,10 @@ export async function similaritySearch(
   knowledgeBaseId: string,
   topK = 5,
 ) {
-  const queryEmbedding = await generateEmbeddings(query);
+  const queryEmbedding = await generateEmbeddings(query, {
+    agentId,
+    source: "embedding",
+  });
 
   const similarChunks = await db
     .select({

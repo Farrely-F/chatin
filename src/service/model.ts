@@ -29,6 +29,8 @@ const DELETE_MODEL_ERROR_MESSAGES: Record<string, string> = {
   INVALID_REPLACEMENT_MODEL: "Please select a different replacement model.",
   REPLACEMENT_MODEL_NOT_FOUND: "Replacement model was not found.",
   REPLACEMENT_MODEL_UNAVAILABLE: "Replacement model must be available.",
+  INCOMPATIBLE_REPLACEMENT_MODEL:
+    "Replacement model must have the same type as the deleted model.",
   MODEL_NOT_FOUND: "Model not found.",
 };
 
@@ -83,6 +85,18 @@ export async function addNewModel(data: ModelSchema) {
 
 export async function getModelDeleteImpact(id: string) {
   try {
+    const [targetModel] = await db
+      .select({ modelType: aiModels.modelType })
+      .from(aiModels)
+      .where(eq(aiModels.id, id))
+      .limit(1);
+
+    if (!targetModel) {
+      return {
+        error: "Model not found.",
+      };
+    }
+
     const [connectedAgents, replacementModels] = await Promise.all([
       db
         .select({
@@ -99,7 +113,13 @@ export async function getModelDeleteImpact(id: string) {
           provider: aiModels.provider,
         })
         .from(aiModels)
-        .where(and(ne(aiModels.id, id), eq(aiModels.isAvailable, true))),
+        .where(
+          and(
+            ne(aiModels.id, id),
+            eq(aiModels.isAvailable, true),
+            eq(aiModels.modelType, targetModel.modelType),
+          ),
+        ),
     ]);
 
     return {
@@ -117,6 +137,19 @@ export async function getModelDeleteImpact(id: string) {
 export async function deleteModel(id: string, replacementModelId?: string) {
   try {
     await db.transaction(async (tx) => {
+      const [targetModel] = await tx
+        .select({
+          id: aiModels.id,
+          modelType: aiModels.modelType,
+        })
+        .from(aiModels)
+        .where(eq(aiModels.id, id))
+        .limit(1);
+
+      if (!targetModel) {
+        throw new Error("MODEL_NOT_FOUND");
+      }
+
       const connectedAgents = await tx
         .select({ id: agents.id })
         .from(agents)
@@ -135,6 +168,7 @@ export async function deleteModel(id: string, replacementModelId?: string) {
           .select({
             id: aiModels.id,
             isAvailable: aiModels.isAvailable,
+            modelType: aiModels.modelType,
           })
           .from(aiModels)
           .where(eq(aiModels.id, replacementModelId))
@@ -146,6 +180,10 @@ export async function deleteModel(id: string, replacementModelId?: string) {
 
         if (!replacementModel.isAvailable) {
           throw new Error("REPLACEMENT_MODEL_UNAVAILABLE");
+        }
+
+        if (replacementModel.modelType !== targetModel.modelType) {
+          throw new Error("INCOMPATIBLE_REPLACEMENT_MODEL");
         }
 
         await tx

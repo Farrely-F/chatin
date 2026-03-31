@@ -101,7 +101,10 @@ export async function recursiveCrawl(
   const chunks = await splitIntoChunks(text, {
     chunkSize: 500,
   });
-  const embeddings = await generateMultipleEmbeddings(chunks);
+  const embeddings = await generateMultipleEmbeddings(chunks, {
+    agentId,
+    source: "embedding",
+  });
 
   if (embeddings.length === 0) throw new Error("Embedding failed");
 

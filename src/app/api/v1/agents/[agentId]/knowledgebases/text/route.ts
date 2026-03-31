@@ -43,7 +43,10 @@ export async function POST(
         type: "html",
       });
 
-      const embeddings = await generateMultipleEmbeddings(chunks);
+      const embeddings = await generateMultipleEmbeddings(chunks, {
+        agentId,
+        source: "embedding",
+      });
 
       const chunkRows = chunks.map((chunk, index) => ({
         agentId,

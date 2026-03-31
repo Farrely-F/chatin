@@ -12,3 +12,4 @@ export * from "./user-roles";
 export * from "./models";
 export * from "./agent-response-feedback";
 export * from "./agent-usage-logs";
+export * from "./system-settings";

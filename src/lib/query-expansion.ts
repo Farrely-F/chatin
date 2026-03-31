@@ -89,7 +89,10 @@ async function fetchTopChunksForExpansion(
   topK: number,
 ) {
   const normalizedQuery = cleanText(query);
-  const queryEmbedding = await generateEmbeddings(normalizedQuery);
+  const queryEmbedding = await generateEmbeddings(normalizedQuery, {
+    agentId,
+    source: "embedding",
+  });
 
   const similarity = sql<number>`1 - (${cosineDistance(
     chunkEmbeddings.embeddingVector,
@@ -184,8 +187,14 @@ export async function embedExpandedQuery(
   const expansion = await expandQuery(query, agentId, options);
 
   const [originalEmbedding, expandedEmbedding] = await Promise.all([
-    generateEmbeddings(cleanText(expansion.originalQuery)),
-    generateEmbeddings(cleanText(expansion.expandedQuery)),
+    generateEmbeddings(cleanText(expansion.originalQuery), {
+      agentId,
+      source: "embedding",
+    }),
+    generateEmbeddings(cleanText(expansion.expandedQuery), {
+      agentId,
+      source: "embedding",
+    }),
   ]);
 
   return {

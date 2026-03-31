@@ -18,9 +18,12 @@ export const modelSchema = z.object({
     .max(100, {
       message: "Provider must not exceed 100 characters.",
     }),
+  modelType: z.enum(["language", "embedding"]),
   description: z.string().optional(),
   isAvailable: z.boolean(),
   supportsImageInput: z.boolean(),
+  supportsCustomDimensions: z.boolean(),
+  supportsMultimodal: z.boolean(),
   supportsToolUse: z.boolean(),
   supportsToolStreaming: z.boolean(),
   supportsObjectGeneration: z.boolean(),

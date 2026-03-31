@@ -22,9 +22,13 @@ const formSchema = z.object({
   chunkSize: z.preprocess(Number, z.number().int().positive()),
   parseMethod: z.enum(["pdf", "agentic"]).default("pdf"),
   parseModelId: z.uuid().optional(),
+  userId: z.string().optional(),
 });
 
-type ParseModel = Pick<typeof aiModels.$inferSelect, "name" | "provider">;
+type ParseModel = Pick<
+  typeof aiModels.$inferSelect,
+  "id" | "name" | "provider"
+>;
 
 function requireParseModel(parseModel: ParseModel | null): ParseModel {
   if (!parseModel) {
@@ -81,6 +85,7 @@ async function resolveAgenticParseModel(parseModelId: string) {
 
   return {
     parseModel: {
+      id: selectedModel.id,
       name: selectedModel.name,
       provider: selectedModel.provider,
     } as ParseModel,
@@ -124,10 +129,17 @@ export const POST = async (
   let chunkSize: number;
   let parseMethod: "pdf" | "agentic";
   let parseModelId: string | undefined;
+  let requestUserId: string | undefined;
 
   try {
     const raw = Object.fromEntries(await req.formData());
-    ({ file, chunkSize, parseMethod, parseModelId } = formSchema.parse(raw));
+    ({
+      file,
+      chunkSize,
+      parseMethod,
+      parseModelId,
+      userId: requestUserId,
+    } = formSchema.parse(raw));
   } catch {
     return NextResponse.json(
       { status: false, error: "Invalid form data" },
@@ -179,7 +191,10 @@ export const POST = async (
           );
         }
       } else {
-        text = await parsePdfWithAgent(buffer, requireParseModel(parseModel));
+        text = await parsePdfWithAgent(buffer, requireParseModel(parseModel), {
+          agentId,
+          requestUserId,
+        });
 
         if (!text || text.trim().length === 0) {
           throw new Error("Unable to extract any text from PDF");
@@ -191,7 +206,11 @@ export const POST = async (
         preserveTables: true,
         preserveLists: true,
       });
-      const embeddings = await generateMultipleEmbeddings(chunks);
+      const embeddings = await generateMultipleEmbeddings(chunks, {
+        agentId,
+        requestUserId,
+        source: "embedding",
+      });
 
       if (embeddings.length === 0) {
         throw new Error("Embedding generation failed");

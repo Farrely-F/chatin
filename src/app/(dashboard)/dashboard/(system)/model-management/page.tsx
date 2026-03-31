@@ -6,10 +6,20 @@ import {
 import { ModelManagement } from "@/features/models-config/model-management";
 import { getCurrentUser } from "@/lib/auth/auth";
 import { getAllModels } from "@/service/model";
+import {
+  getEmbeddingModelIdSetting,
+  getEmbeddingProviderSetting,
+} from "@/service/system-settings";
 
 export default async function ModelManagementPage() {
-  const user = await getCurrentUser();
-  const models = await getAllModels();
+  const [user, models, embeddingProvider, embeddingModelId] = await Promise.all(
+    [
+      getCurrentUser(),
+      getAllModels(),
+      getEmbeddingProviderSetting(),
+      getEmbeddingModelIdSetting(),
+    ],
+  );
 
   return (
     <PageLayout className="container mx-auto">
@@ -18,7 +28,12 @@ export default async function ModelManagementPage() {
         <p className="text-muted-foreground">Manage your LLM models</p>
       </PageLayoutHeader>
       <PageLayoutContent className="@container mx-auto">
-        <ModelManagement userId={user?.id || ""} models={models} />
+        <ModelManagement
+          userId={user?.id || ""}
+          models={models}
+          embeddingProvider={embeddingProvider}
+          embeddingModelId={embeddingModelId}
+        />
       </PageLayoutContent>
     </PageLayout>
   );

@@ -1,5 +1,4 @@
-import { google } from "@ai-sdk/google";
-import { embed } from "ai";
+import { generateEmbeddings } from "./embedding-model";
 
 type RerankResult = {
   id: string;
@@ -12,24 +11,19 @@ type RerankOptions = {
   enableReranking?: boolean;
   rerankTopK?: number;
   rerankWeight?: number;
+  agentId?: string;
 };
-
-const CROSS_ENCODER_DIMENSIONS = 768;
 
 async function generateCrossEncoderScore(
   query: string,
   document: string,
+  agentId?: string,
 ): Promise<number> {
   const combinedText = `${query} [SEP] ${document}`;
 
-  const { embedding } = await embed({
-    model: google.textEmbeddingModel("gemini-embedding-001"),
-    value: combinedText,
-    providerOptions: {
-      google: {
-        outputDimensionality: CROSS_ENCODER_DIMENSIONS,
-      },
-    },
+  const embedding = await generateEmbeddings(combinedText, {
+    agentId,
+    source: "tool",
   });
 
   return embedding[0] ?? 0;
@@ -52,6 +46,7 @@ export async function rerankResults(
     enableReranking = true,
     rerankTopK = 5,
     rerankWeight = 0.4,
+    agentId,
   } = options;
 
   if (!enableReranking || results.length === 0) {
@@ -67,7 +62,11 @@ export async function rerankResults(
 
   const crossEncoderScores: number[] = [];
   for (const result of rerankCandidates) {
-    const score = await generateCrossEncoderScore(query, result.content);
+    const score = await generateCrossEncoderScore(
+      query,
+      result.content,
+      agentId,
+    );
     crossEncoderScores.push(Math.abs(score));
   }
 

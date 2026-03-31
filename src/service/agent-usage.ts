@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { agentUsageLogs, aiModels } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-type UsageSource = "stream" | "text";
+type UsageSource = "stream" | "text" | "embedding" | "tool";
 
 type UsageInput = {
   agentId: string;

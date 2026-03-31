@@ -59,7 +59,10 @@ export const searchSimilarChunks = async ({
   const normalizedQuery = cleanText(query);
   const normalizedTopK = Math.max(1, Math.floor(topK));
   const normalizedThreshold = Math.min(1, Math.max(0, similarityThreshold));
-  const queryEmbedding = await generateEmbeddings(normalizedQuery);
+  const queryEmbedding = await generateEmbeddings(normalizedQuery, {
+    agentId,
+    source: "embedding",
+  });
 
   const similarity = sql<number>`1 - (${cosineDistance(
     chunkEmbeddings.embeddingVector,
@@ -176,7 +179,10 @@ export async function searchSimilarChunksHybrid({
 
   let expansion: ExpansionResult | undefined;
   let usedQueryExpansion = false;
-  let queryEmbedding = await generateEmbeddings(normalizedQuery);
+  let queryEmbedding = await generateEmbeddings(normalizedQuery, {
+    agentId,
+    source: "embedding",
+  });
 
   if (enableQueryExpansion) {
     const expansionResult = await expandQuery(normalizedQuery, agentId, {
@@ -190,6 +196,10 @@ export async function searchSimilarChunksHybrid({
     if (expansionResult.addedTerms.length > 0) {
       const expandedEmbedding = await generateEmbeddings(
         cleanText(expansionResult.expandedQuery),
+        {
+          agentId,
+          source: "embedding",
+        },
       );
       queryEmbedding = blendQueryEmbeddings(
         queryEmbedding,
@@ -249,6 +259,7 @@ export async function searchSimilarChunksHybrid({
       enableReranking: true,
       rerankTopK: normalizedTopK,
       rerankWeight: rerankWeight ?? 0.4,
+      agentId,
     });
 
     finalResults = finalResults.map((r, idx) => ({

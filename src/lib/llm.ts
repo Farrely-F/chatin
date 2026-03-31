@@ -70,6 +70,10 @@ const groq = createGroq({
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
+  headers: {
+    "HTTP-Referer": "https://chatto.co.id",
+    "X-Title": "Chatto",
+  },
 });
 
 function getOpenRouterPromptCacheControl(
@@ -446,7 +450,9 @@ export function generateStreamResponse({
         usage.cachedInputTokens ??
         0;
       const totalTokens =
-        providerUsage?.totalTokens ?? usage.totalTokens ?? inputTokens + outputTokens;
+        providerUsage?.totalTokens ??
+        usage.totalTokens ??
+        inputTokens + outputTokens;
 
       await logAgentUsage({
         agentId,
@@ -460,13 +466,6 @@ export function generateStreamResponse({
         totalTokens,
         billedCostUsd: getBilledCostUsd(providerUsage),
       });
-
-      console.log(
-        "LLM Response Finished. Usage:",
-        usage,
-        "Provider Usage:",
-        providerUsage,
-      );
     },
   });
 
