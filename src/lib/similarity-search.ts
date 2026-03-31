@@ -1,11 +1,12 @@
 import { db } from "@/db";
 import { chunkEmbeddings } from "@/db/schema/embeddings";
+import { knowledgeBases } from "@/db/schema/knowledgebases";
 import { generateEmbeddings } from "@/lib/embedding-model";
 import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 
 import {
+  type Document as Bm25Document,
   type Bm25Score,
-  type Document,
   createBm25Index,
   normalizeScores,
 } from "./bm25";
@@ -36,14 +37,25 @@ type HybridSearchOptions = SimilaritySearch & {
 
 type SearchResult = {
   id: string;
+  knowledgeBaseId?: string;
   content: string;
   similarity: number;
+  sourceType?: "pdf" | "doc" | "txt" | "url" | "manual";
+  sourceUrl?: string | null;
+  fileName?: string | null;
   bm25Score?: number;
   hybridScore?: number;
   rerankScore?: number;
   expansion?: ExpansionResult;
   usedQueryExpansion?: boolean;
   usedReranking?: boolean;
+};
+
+type ChunkDocument = Bm25Document & {
+  knowledgeBaseId?: string;
+  sourceType?: "pdf" | "doc" | "txt" | "url" | "manual";
+  sourceUrl?: string | null;
+  fileName?: string | null;
 };
 
 const DEFAULT_VECTOR_WEIGHT = 0.6;
@@ -113,21 +125,39 @@ export const searchSimilarChunks = async ({
     .slice(0, normalizedTopK);
 };
 
-async function fetchAllChunksForAgent(agentId: string): Promise<Document[]> {
+async function fetchAllChunksForAgent(
+  agentId: string,
+): Promise<ChunkDocument[]> {
   const chunks = await db
     .select({
       id: chunkEmbeddings.id,
+      knowledgeBaseId: chunkEmbeddings.knowledgeBaseId,
       content: chunkEmbeddings.contentChunk,
+      sourceType: knowledgeBases.sourceType,
+      sourceUrl: knowledgeBases.sourceUrl,
+      fileName: knowledgeBases.fileName,
     })
     .from(chunkEmbeddings)
+    .leftJoin(
+      knowledgeBases,
+      eq(knowledgeBases.id, chunkEmbeddings.knowledgeBaseId),
+    )
     .where(eq(chunkEmbeddings.agentId, agentId));
 
-  return chunks.map((c) => ({ id: c.id, content: c.content }));
+  return chunks.map((c) => ({
+    id: c.id,
+    knowledgeBaseId: c.knowledgeBaseId,
+    content: c.content,
+    sourceType: c.sourceType ?? undefined,
+    sourceUrl: c.sourceUrl,
+    fileName: c.fileName,
+  }));
 }
 
 function mergeHybridResults(
   vectorResults: SearchResult[],
   bm25Results: Bm25Score[],
+  allChunksById: Map<string, ChunkDocument>,
   vectorWeight: number,
   bm25Weight: number,
 ): SearchResult[] {
@@ -147,10 +177,15 @@ function mergeHybridResults(
       existing.hybridScore =
         existing.similarity * vectorWeight + bm25Result.score * bm25Weight;
     } else {
+      const matchedChunk = allChunksById.get(bm25Result.id);
       scoreMap.set(bm25Result.id, {
         id: bm25Result.id,
+        knowledgeBaseId: matchedChunk?.knowledgeBaseId,
         content: bm25Result.content,
         similarity: 0,
+        sourceType: matchedChunk?.sourceType,
+        sourceUrl: matchedChunk?.sourceUrl,
+        fileName: matchedChunk?.fileName,
         bm25Score: bm25Result.score,
         hybridScore: bm25Result.score * bm25Weight,
       });
@@ -218,16 +253,29 @@ export async function searchSimilarChunksHybrid({
   const vectorResults = await db
     .select({
       id: chunkEmbeddings.id,
+      knowledgeBaseId: chunkEmbeddings.knowledgeBaseId,
       content: chunkEmbeddings.contentChunk,
       similarity,
+      sourceType: knowledgeBases.sourceType,
+      sourceUrl: knowledgeBases.sourceUrl,
+      fileName: knowledgeBases.fileName,
     })
     .from(chunkEmbeddings)
+    .leftJoin(
+      knowledgeBases,
+      eq(knowledgeBases.id, chunkEmbeddings.knowledgeBaseId),
+    )
     .where(eq(chunkEmbeddings.agentId, agentId))
     .orderBy((t) => desc(t.similarity))
     .limit(normalizedTopK * 3);
 
+  const normalizedVectorResults: SearchResult[] = vectorResults.map((r) => ({
+    ...r,
+    sourceType: r.sourceType ?? undefined,
+  }));
+
   if (!enableHybrid) {
-    const results = vectorResults.slice(0, normalizedTopK);
+    const results = normalizedVectorResults.slice(0, normalizedTopK);
     if (expansion) {
       return results.map((r) => ({ ...r, expansion }));
     }
@@ -241,12 +289,14 @@ export async function searchSimilarChunksHybrid({
   }
 
   const bm25Index = createBm25Index(allChunks);
+  const allChunksById = new Map(allChunks.map((chunk) => [chunk.id, chunk]));
   const bm25Results = bm25Index.search(normalizedQuery, normalizedTopK * 3);
   const normalizedBm25 = normalizeScores(bm25Results);
 
   const mergedResults = mergeHybridResults(
-    vectorResults,
+    normalizedVectorResults,
     normalizedBm25,
+    allChunksById,
     vectorWeight,
     bm25Weight,
   );

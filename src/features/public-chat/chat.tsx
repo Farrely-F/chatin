@@ -10,7 +10,7 @@ import { AgentDetails } from "@/service/agents";
 import { useChat } from "@ai-sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { StopCircle } from "lucide-react";
+import { ChevronDown, StopCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import {
@@ -28,6 +28,11 @@ import { toast } from "sonner";
 import { z } from "zod/v4";
 
 import { ChatMessage } from "../../components/ui/chat-message";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../../components/ui/collapsible";
 import { Form, FormField } from "../../components/ui/form";
 
 const ChatDisclaimer = dynamic(() => import("./chat-disclaimer"), {
@@ -38,6 +43,28 @@ const formSchema = z.object({
   message: z.string().trim().min(1),
 });
 
+type RetrievedChunk = {
+  id: string;
+  knowledgeBaseId?: string;
+  content: string;
+  similarity: number;
+  sourceType?: "pdf" | "doc" | "txt" | "url" | "manual";
+  sourceUrl?: string | null;
+  fileName?: string | null;
+};
+
+type ChatPartLike = {
+  type: string;
+  output?: unknown;
+  text?: string;
+};
+
+type KnowledgeSource = {
+  key: string;
+  label: string;
+  url?: string;
+};
+
 function getCodeText(children: ReactNode) {
   return Children.toArray(children)
     .map((child) =>
@@ -46,6 +73,83 @@ function getCodeText(children: ReactNode) {
         : "",
     )
     .join("");
+}
+
+function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
+  if (!Array.isArray(output)) {
+    return [];
+  }
+
+  const normalizedChunks: RetrievedChunk[] = [];
+
+  for (const chunk of output) {
+    if (!chunk || typeof chunk !== "object") {
+      continue;
+    }
+
+    const candidate = chunk as Partial<RetrievedChunk>;
+
+    if (
+      typeof candidate.id !== "string" ||
+      typeof candidate.content !== "string" ||
+      typeof candidate.similarity !== "number"
+    ) {
+      continue;
+    }
+
+    normalizedChunks.push({
+      id: candidate.id,
+      knowledgeBaseId: candidate.knowledgeBaseId,
+      content: candidate.content,
+      similarity: Math.min(1, Math.max(0, candidate.similarity)),
+      sourceType: candidate.sourceType,
+      sourceUrl: candidate.sourceUrl,
+      fileName: candidate.fileName,
+    });
+  }
+
+  return normalizedChunks;
+}
+
+function getKnowledgeSourceLabel(chunk: RetrievedChunk) {
+  if (chunk.fileName?.trim()) {
+    return chunk.fileName.trim();
+  }
+
+  if (chunk.sourceUrl?.trim()) {
+    return chunk.sourceUrl.trim();
+  }
+
+  if (chunk.sourceType) {
+    return `${chunk.sourceType.toUpperCase()} source`;
+  }
+
+  return `Knowledge ${chunk.knowledgeBaseId?.slice(0, 8) ?? chunk.id.slice(0, 8)}`;
+}
+
+function collectKnowledgeSources(parts: ChatPartLike[]): KnowledgeSource[] {
+  const retrievedChunks = parts
+    .filter((part) => part.type === "tool-retrieve_context")
+    .flatMap((part) => normalizeRetrievedChunks(part.output));
+
+  return Array.from(
+    new Map(
+      retrievedChunks.map((chunk) => {
+        const url = chunk.sourceUrl?.trim() || undefined;
+        const label = getKnowledgeSourceLabel(chunk);
+        const key = `${label}:${url ?? ""}`;
+
+        return [
+          key,
+          {
+            key,
+            label,
+            url,
+          },
+        ];
+      }),
+    ).values(),
+  );
 }
 
 const markdownComponents = {
@@ -213,6 +317,12 @@ export default function Chat({
       <div className="relative grow">
         <div className="max-w-3xl mx-auto mt-6 space-y-6 space-x-2">
           {messages.map((msg) => {
+            const chatParts = msg.parts as ChatPartLike[];
+            const textPartIndex = chatParts.findIndex(
+              (msgPart) => msgPart.type === "text",
+            );
+            const knowledgeSources = collectKnowledgeSources(chatParts);
+
             return msg.parts.map((part, idx) => {
               if (part.type === "text") {
                 return (
@@ -234,6 +344,48 @@ export default function Chat({
                     >
                       {part.text}
                     </ReactMarkdown>
+
+                    {msg.role === "assistant" &&
+                      idx === textPartIndex &&
+                      knowledgeSources.length > 0 && (
+                        <Collapsible className="mt-2">
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground w-full justify-between"
+                            >
+                              References ({knowledgeSources.length})
+                              <ChevronDown className="size-3 ml-1" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-2">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {knowledgeSources.map((source, sourceIndex) => {
+                                const chipLabel = `[${sourceIndex + 1}] ${source.label}`;
+
+                                return source.url ? (
+                                  <p
+                                    key={source.key}
+                                    className="inline-flex rounded-full border border-border bg-background px-2.5 py-1 text-foreground/90 hover:bg-muted"
+                                  >
+                                    {chipLabel}
+                                  </p>
+                                ) : (
+                                  <Badge
+                                    key={source.key}
+                                    variant="outline"
+                                    className="rounded-full"
+                                  >
+                                    {chipLabel}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                   </ChatMessage>
                 );
               }

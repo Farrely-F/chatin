@@ -12,6 +12,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   EllipsisVertical,
   FileDown,
   FileUp,
@@ -41,6 +42,11 @@ import { Badge } from "./badge";
 import { submitPlaygroundFeedbackAction } from "./chat-feedback-actions";
 import { ChatMessage } from "./chat-message";
 import { CodeBlock } from "./code-block";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,8 +99,12 @@ type MessageMetadata = {
 
 type RetrievedChunk = {
   id: string;
+  knowledgeBaseId?: string;
   content: string;
   similarity: number;
+  sourceType?: "pdf" | "doc" | "txt" | "url" | "manual";
+  sourceUrl?: string | null;
+  fileName?: string | null;
   hybridScore?: number;
   bm25Score?: number;
   rerankScore?: number;
@@ -128,6 +138,12 @@ type FeedbackPayload = {
   agentResponse: string;
   expectedResponse?: string;
   feedbackNote?: string;
+};
+
+type KnowledgeSource = {
+  key: string;
+  label: string;
+  url?: string;
 };
 
 function createImportedMessageId(index: number) {
@@ -182,8 +198,18 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
 
       return {
         id: candidate.id,
+        knowledgeBaseId: candidate.knowledgeBaseId,
         content: candidate.content,
         similarity: Math.min(1, Math.max(0, candidate.similarity)),
+        ...(candidate.sourceType !== undefined && {
+          sourceType: candidate.sourceType,
+        }),
+        ...(candidate.sourceUrl !== undefined && {
+          sourceUrl: candidate.sourceUrl,
+        }),
+        ...(candidate.fileName !== undefined && {
+          fileName: candidate.fileName,
+        }),
         ...(candidate.hybridScore !== undefined && {
           hybridScore: candidate.hybridScore,
         }),
@@ -212,6 +238,43 @@ function normalizeRetrievedChunks(output: unknown): RetrievedChunk[] {
     })
     .filter((chunk): chunk is RetrievedChunk => chunk !== null)
     .sort((a, b) => b.similarity - a.similarity);
+}
+
+function getKnowledgeSourceLabel(chunk: RetrievedChunk) {
+  if (chunk.fileName?.trim()) {
+    return chunk.fileName.trim();
+  }
+
+  if (chunk.sourceUrl?.trim()) {
+    return chunk.sourceUrl.trim();
+  }
+
+  if (chunk.sourceType) {
+    return `${chunk.sourceType.toUpperCase()} source`;
+  }
+
+  return `Knowledge ${chunk.knowledgeBaseId?.slice(0, 8) ?? chunk.id.slice(0, 8)}`;
+}
+
+function collectKnowledgeSources(retrievedChunks: RetrievedChunk[]) {
+  return Array.from(
+    new Map(
+      retrievedChunks.map((chunk) => {
+        const url = chunk.sourceUrl?.trim() || undefined;
+        const label = getKnowledgeSourceLabel(chunk);
+        const key = `${label}:${url ?? ""}`;
+
+        return [
+          key,
+          {
+            key,
+            label,
+            url,
+          } satisfies KnowledgeSource,
+        ];
+      }),
+    ).values(),
+  );
 }
 
 function getSimilarityConfidence(similarity: number) {
@@ -1177,6 +1240,9 @@ export default function Chat({
             const retrievalDebug = collectRetrievalDebug(
               msg.parts as ChatPartLike[],
             );
+            const knowledgeSources = collectKnowledgeSources(
+              retrievalDebug.retrievedChunks,
+            );
             const assistantResponseText = extractTextFromParts(
               msg.parts as ChatPartLike[],
             );
@@ -1230,6 +1296,51 @@ export default function Chat({
                     >
                       {part.text}
                     </ReactMarkdown>
+
+                    {msg.role === "assistant" &&
+                      idx === textPartIndex &&
+                      knowledgeSources.length > 0 && (
+                        <Collapsible className="mt-2">
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground w-full justify-between"
+                            >
+                              References ({knowledgeSources.length})
+                              <ChevronDown className="size-3 ml-1" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-2">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {knowledgeSources.map((source, sourceIndex) => {
+                                const chipLabel = `[${sourceIndex + 1}] ${source.label}`;
+
+                                return source.url ? (
+                                  <a
+                                    key={source.key}
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex rounded-full border border-border bg-background px-2.5 py-1 text-foreground/90 hover:bg-muted"
+                                  >
+                                    {chipLabel}
+                                  </a>
+                                ) : (
+                                  <Badge
+                                    key={source.key}
+                                    variant="outline"
+                                    className="rounded-full"
+                                  >
+                                    {chipLabel}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
 
                     {msg.role === "assistant" && idx === textPartIndex && (
                       <AssistantResponseInspector

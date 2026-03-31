@@ -634,6 +634,10 @@ function llmToolsConfig({
           const sanitized = sanitizeContent(r.content);
           return {
             id: r.id,
+            knowledgeBaseId: r.knowledgeBaseId,
+            sourceType: r.sourceType,
+            sourceUrl: r.sourceUrl,
+            fileName: r.fileName,
             content: sanitized.content,
             similarity: r.rerankScore ?? r.hybridScore ?? r.similarity,
             hybridScore: r.hybridScore,
