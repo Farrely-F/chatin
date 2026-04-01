@@ -101,9 +101,11 @@ export function PulseCard({
   className,
   variant = "emerald",
   size = "md",
+  hoverScale = 1.01,
+  interactive = true,
   glowEffect = false,
   showGridLines = true,
-}: CardProps) {
+}: Readonly<CardProps>) {
   const variantConfig = VARIANTS[variant];
   const sizeConfig = SIZES[size];
 
@@ -112,6 +114,8 @@ export function PulseCard({
       className={cn(
         "group relative z-30 cursor-pointer overflow-hidden rounded-2xl",
         sizeConfig.padding,
+        interactive && "transition-transform duration-200",
+        interactive && "hover:[transform:scale(var(--card-hover-scale))]",
         // Light mode styles
         "bg-white/80 before:bg-linear-to-b before:from-white/5 before:to-white/20 before:backdrop-blur-3xl",
         "after:bg-linear-to-b after:from-transparent after:via-transparent after:to-white/20",
@@ -132,6 +136,7 @@ export function PulseCard({
       style={
         {
           "--card-color": variantConfig.color,
+          "--card-hover-scale": `${hoverScale}`,
         } as React.CSSProperties
       }
     >
@@ -145,7 +150,7 @@ export function PulseCard({
         }}
       >
         <div
-          className="absolute inset-[-200%] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          className="absolute inset-[-200%] opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:animate-none"
           style={{
             background: `conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 340deg, var(--card-color) 360deg)`,
             animation: "spin 4s linear infinite",
@@ -162,7 +167,7 @@ export function PulseCard({
             "absolute inset-[4.5px] rounded-[inherit]",
             "bg-linear-to-b from-black/5 to-black/10 backdrop-blur-3xl",
             "dark:from-white/10 dark:to-white/5",
-            "transition-all duration-300",
+            "transition-[background-color,opacity] duration-300",
           )}
         />
         <span
@@ -178,12 +183,13 @@ export function PulseCard({
       </span>
 
       {/* Content */}
-      <div className="relative z-30 mt-2">
+      <div className="relative z-30 mt-2 min-w-0">
         <h3
           className={cn(
             "font-medium transition-colors duration-300",
             "text-black/80 group-hover:text-[var(--card-color)]",
             "dark:text-white/80",
+            "truncate",
             sizeConfig.titleSize,
           )}
         >
@@ -194,6 +200,7 @@ export function PulseCard({
             "mt-1 transition-colors duration-300",
             "text-black/60",
             "dark:text-white/40",
+            "line-clamp-2 break-words",
             sizeConfig.descSize,
           )}
         >
@@ -202,7 +209,7 @@ export function PulseCard({
       </div>
 
       {/* Shine Effect */}
-      <div className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] opacity-0 transition-all duration-500 group-hover:opacity-100">
+      <div className="absolute inset-0 z-20 overflow-hidden rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover:opacity-100 motion-reduce:opacity-0">
         <div
           className="absolute bottom-[55%] left-1/2 aspect-square w-[200%] -translate-x-1/2 rounded-[50%]"
           style={{
@@ -219,30 +226,30 @@ export function PulseCard({
           {showGridLines && (
             <div className="duration-[350ms] opacity-1 absolute inset-0 transition-opacity group-hover:opacity-100">
               {/* Horizontal Lines */}
-              {GRID_STRUCTURE.rows.map((row, i) => (
+              {GRID_STRUCTURE.rows.map((row) => (
                 <div
-                  key={`h-${i}`}
+                  key={`h-${row.start}`}
                   className={cn(
                     "duration-[350ms] absolute inset-x-0 h-[1px] origin-[0%_50%] scale-x-0 transition-transform group-hover:scale-x-100",
                     `bg-linear-to-r from-${variantConfig.accent}/0 via-${variantConfig.accent}/20 to-${variantConfig.accent}/0`,
                   )}
                   style={{
                     top: `${row.start}%`,
-                    transitionDelay: `${(2 - i) * 150}ms`,
+                    transitionDelay: `${(2 - row.start / 10) * 150}ms`,
                   }}
                 />
               ))}
               {/* Vertical Lines */}
-              {GRID_STRUCTURE.columns.map((col, i) => (
+              {GRID_STRUCTURE.columns.map((col) => (
                 <div
-                  key={`v-${i}`}
+                  key={`v-${col.start}`}
                   className={cn(
                     "duration-[350ms] absolute inset-y-0 w-[1px] origin-[50%_0%] scale-y-0 transition-transform group-hover:scale-y-100",
                     `bg-linear-to-b from-${variantConfig.accent}/0 via-${variantConfig.accent}/20 to-${variantConfig.accent}/0`,
                   )}
                   style={{
                     left: `${col.start + col.width}%`,
-                    transitionDelay: `${(2 - i) * 150}ms`,
+                    transitionDelay: `${(2 - col.start / 25) * 150}ms`,
                   }}
                 />
               ))}
@@ -250,14 +257,14 @@ export function PulseCard({
           )}
 
           {/* Grid Cells */}
-          <div className="group-hover:delay-[500ms] absolute inset-0 opacity-0 mix-blend-overlay transition-opacity duration-500 group-hover:opacity-100">
+          <div className="group-hover:delay-[500ms] absolute inset-0 opacity-0 mix-blend-overlay transition-opacity duration-500 group-hover:opacity-100 motion-reduce:hidden">
             {GRID_STRUCTURE.rows.map((row, rowIndex) => (
-              <React.Fragment key={`row-${rowIndex}`}>
+              <React.Fragment key={`row-${row.start}`}>
                 {GRID_STRUCTURE.columns.map((col, colIndex) => (
                   <div
                     key={`cell-${rowIndex}-${colIndex}`}
                     className={cn(
-                      "absolute animate-tile opacity-0",
+                      "absolute animate-tile opacity-0 motion-reduce:animate-none",
                       `bg-linear-to-br ${variantConfig.gradient}`,
                     )}
                     style={{

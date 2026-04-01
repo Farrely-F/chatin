@@ -60,10 +60,11 @@ export default function DeleteAgent({
       >
         <Button
           variant="ghost"
-          className="size-5 p-0 hover:bg-transparent z-50"
+          aria-label="Open agent actions"
+          className="size-9 p-0 hover:bg-muted z-50"
           onClick={(e) => e.stopPropagation()}
         >
-          <MoreVerticalIcon />
+          <MoreVerticalIcon aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-w-64 p-2" align="end">

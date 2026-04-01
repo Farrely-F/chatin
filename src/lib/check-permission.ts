@@ -7,8 +7,35 @@ import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "./auth/auth";
 
+export async function isSystemAdmin(userId: string) {
+  try {
+    const result = await db
+      .select({
+        permission: permissions.permission,
+      })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .innerJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(
+        and(
+          eq(userRoles.userId, userId),
+          eq(permissions.permission, "system.create"),
+        ),
+      );
+
+    return result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function hasPermission(userId: string, permission: string) {
   try {
+    if (await isSystemAdmin(userId)) {
+      return true;
+    }
+
     const result = await db
       .select({
         permission: permissions.permission,
@@ -30,7 +57,10 @@ export async function hasPermission(userId: string, permission: string) {
   }
 }
 
-export async function protectedPage(permission: string) {
+export async function protectedPage(
+  permission: string,
+  redirectTo = "/dashboard",
+) {
   const user = await getCurrentUser();
 
   const [isAdmin, authorized] = await Promise.all([
@@ -43,7 +73,7 @@ export async function protectedPage(permission: string) {
   }
 
   if (!authorized) {
-    return redirect("/dashboard");
+    return redirect(redirectTo);
   }
 
   return;

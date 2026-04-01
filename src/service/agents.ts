@@ -303,7 +303,7 @@ export async function forceArchiveAgent(agentId: string, adminUserId: string) {
       .where(eq(agents.id, agentId));
 
     revalidatePath("/dashboard/monitoring/public-agents");
-    revalidatePath("/dashboard/deployed-agents");
+    revalidatePath("/dashboard/agents");
     if (agent.slug) {
       revalidatePath(`/chat/${agent.slug}`);
     }
