@@ -1,7 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { agentUsageLogs, agents, aiModels, organizations } from "@/db/schema";
+import {
+  agentUsageLogs,
+  agents,
+  aiModels,
+  organizations,
+  users,
+} from "@/db/schema";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 export type MonitoringDateRange = {
@@ -79,6 +85,8 @@ export type ProviderModelComparisonRow = {
 
 export type TopUserSpendRow = {
   requestUserId: string;
+  requestUserName: string | null;
+  requestUserEmail: string | null;
   spendUsd: number;
   spendIdr: number;
   requests: number;
@@ -466,6 +474,8 @@ export async function getTopUsersBySpend(
   const rows = await db
     .select({
       requestUserId: agentUsageLogs.requestUserId,
+      requestUserName: users.name,
+      requestUserEmail: users.email,
       spendUsd: sql<number>`COALESCE(SUM(${agentUsageLogs.costUsd}), 0)::double precision`,
       spendIdr: sql<number>`COALESCE(SUM(${agentUsageLogs.costIdr}), 0)::double precision`,
       requests: sql<number>`COUNT(*)::int`,
@@ -473,13 +483,14 @@ export async function getTopUsersBySpend(
     })
     .from(agentUsageLogs)
     .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .leftJoin(users, sql`${users.id}::text = ${agentUsageLogs.requestUserId}`)
     .where(
       and(
         scopedByOrganization(range, organizationId),
         sql`${agentUsageLogs.requestUserId} IS NOT NULL`,
       ),
     )
-    .groupBy(agentUsageLogs.requestUserId)
+    .groupBy(agentUsageLogs.requestUserId, users.name, users.email)
     .orderBy(sql`COALESCE(SUM(${agentUsageLogs.costUsd}), 0) DESC`)
     .limit(10);
 
@@ -487,6 +498,8 @@ export async function getTopUsersBySpend(
     .filter((row) => Boolean(row.requestUserId))
     .map((row) => ({
       requestUserId: row.requestUserId as string,
+      requestUserName: row.requestUserName,
+      requestUserEmail: row.requestUserEmail,
       spendUsd: normalizeNumber(row.spendUsd),
       spendIdr: normalizeNumber(row.spendIdr),
       requests: normalizeNumber(row.requests),

@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CopyButton } from "@/components/ui/copy-button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -123,6 +124,14 @@ function formatPercent(value: number): string {
 
 function formatRatio(value: number): string {
   return `${value.toFixed(2)}x`;
+}
+
+function truncateUserId(value: string): string {
+  if (value.length <= 16) {
+    return value;
+  }
+
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
 }
 
 type MonitoringPayload = Awaited<ReturnType<typeof getAgentUsageMonitoring>>;
@@ -259,7 +268,22 @@ function TopUsersSpendCard({
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.requestUserId}>
-                  <TableCell>{row.requestUserId}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <span>{row.requestUserName ?? "Unknown User"}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {row.requestUserEmail ?? "No email"}
+                      </span>
+                      <div className="text-muted-foreground flex items-center gap-1 text-xs">
+                        <span>{truncateUserId(row.requestUserId)}</span>
+                        <CopyButton
+                          value={row.requestUserId}
+                          className="h-5 w-5"
+                          aria-label={`Copy user ID for ${row.requestUserName ?? row.requestUserId}`}
+                        />
+                      </div>
+                    </div>
+                  </TableCell>
                   <TableCell>{row.requests.toLocaleString()}</TableCell>
                   <TableCell>{row.totalTokens.toLocaleString()}</TableCell>
                   <TableCell>{formatCurrencyUsd(row.spendUsd)}</TableCell>
