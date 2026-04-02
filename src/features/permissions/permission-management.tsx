@@ -17,10 +17,10 @@ import { PermissionsTable } from "./permission-table";
 export function PermissionManagement({
   userId,
   permissions,
-}: {
+}: Readonly<{
   userId: string;
   permissions: Permissions[];
-}) {
+}>) {
   const [batchSelectIds, setBatchSelectIds] = useState<string[]>([]);
 
   const categories = Array.from(
@@ -53,6 +53,7 @@ export function PermissionManagement({
       </CardHeader>
       <CardContent className="@container">
         <PermissionsTable
+          userId={userId}
           batchSelectIds={batchSelectIds}
           setBatchSelectIds={setBatchSelectIds}
           categories={categories}

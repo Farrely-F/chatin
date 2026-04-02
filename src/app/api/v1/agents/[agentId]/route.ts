@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { withAuth } from "@/middleware/api-middleware";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import { ApiHandlerArgs } from "@/types/api";
 import { NextResponse } from "next/server";
 
@@ -15,13 +15,18 @@ async function handler(...args: ApiHandlerArgs) {
     );
   }
 
+  const access = await canAccessAgentById(req, agentId);
+
+  if (!access.allowed) {
+    return NextResponse.json(
+      { status: false, error: "Agent not found" },
+      { status: 404 },
+    );
+  }
+
   try {
     const agent = await db.query.agents.findFirst({
-      where: (agents, { eq, and }) =>
-        and(
-          eq(agents.id, agentId),
-          eq(agents.userId, req.authorized?.userId as string),
-        ),
+      where: (agents, { eq }) => eq(agents.id, agentId),
       with: {
         knowledgeBases: {
           columns: {

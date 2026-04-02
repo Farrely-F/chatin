@@ -134,6 +134,70 @@ export async function createRoleWithPermissions(
   }
 }
 
+export async function updateRoleWithPermissions(
+  id: string,
+  input: AddRoleSchema,
+  permissionIds: string[],
+) {
+  try {
+    return await db.transaction(async (trx) => {
+      const existingRole = await trx
+        .select()
+        .from(roles)
+        .where(eq(roles.id, id));
+
+      if (existingRole.length === 0) {
+        throw new Error("Role not found");
+      }
+
+      const validPermissions = await trx
+        .select({ id: permissions.id })
+        .from(permissions)
+        .where(inArray(permissions.id, permissionIds));
+
+      if (validPermissions.length !== permissionIds.length) {
+        throw new Error("Some permission IDs are invalid");
+      }
+
+      await trx
+        .update(roles)
+        .set({
+          name: input.name,
+          description: input.description,
+          updatedAt: new Date(),
+        })
+        .where(eq(roles.id, id));
+
+      await trx.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
+
+      if (permissionIds.length > 0) {
+        await trx.insert(rolePermissions).values(
+          permissionIds.map((permissionId) => ({
+            roleId: id,
+            permissionId,
+          })),
+        );
+      }
+
+      revalidatePath("/dashboard", "layout");
+
+      return {
+        message: "Role updated successfully",
+      };
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      return {
+        error: error.message,
+      };
+    }
+
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
 export async function deleteRole(id: string) {
   try {
     await db.delete(roles).where(eq(roles.id, id));

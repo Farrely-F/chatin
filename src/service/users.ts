@@ -2,6 +2,7 @@
 
 import { db } from "@/db";
 import { roles, userRoles, users } from "@/db/schema";
+import { getCurrentUser } from "@/lib/auth/auth";
 import { hasPermission } from "@/lib/check-permission";
 import { RegisterSchema } from "@/schema/user-auth-schema";
 import bcrypt from "bcryptjs";
@@ -118,6 +119,72 @@ export async function deleteUser(userId: string) {
     revalidatePath("/dashboard/user-management");
 
     return { message: "User deleted successfully" };
+  } catch (error) {
+    console.error(error);
+    return { error: "Cannot process your request" };
+  }
+}
+
+type UpdateUserPayload = {
+  email: string;
+  name: string;
+};
+
+export async function updateUser(userId: string, data: UpdateUserPayload) {
+  const currentUser = await getCurrentUser();
+  const authorized = await hasPermission(
+    currentUser?.id || "",
+    "system.create",
+  );
+
+  if (!authorized) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    await db
+      .update(users)
+      .set({
+        email: data.email,
+        name: data.name,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    revalidatePath("/dashboard/user-management");
+
+    return { message: "User updated successfully" };
+  } catch (error) {
+    console.error(error);
+    return { error: "Cannot process your request" };
+  }
+}
+
+export async function changeUserPassword(userId: string, password: string) {
+  const currentUser = await getCurrentUser();
+  const authorized = await hasPermission(
+    currentUser?.id || "",
+    "system.create",
+  );
+
+  if (!authorized) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await db
+      .update(users)
+      .set({
+        passwordHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    revalidatePath("/dashboard/user-management");
+
+    return { message: "Password updated successfully" };
   } catch (error) {
     console.error(error);
     return { error: "Cannot process your request" };

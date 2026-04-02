@@ -45,6 +45,7 @@ export default function AgentDetailView({
   agentKnowledgeBases,
   agentFeedbacks,
   personas,
+  organizations,
   userId,
 }: {
   readonly agentDetails: AgentDetails;
@@ -52,6 +53,7 @@ export default function AgentDetailView({
   readonly agentKnowledgeBases: KnowledgeBase[];
   readonly agentFeedbacks: AgentFeedbackClientItem[];
   readonly personas: PersonaDetails[];
+  readonly organizations: Array<{ id: string; name: string }>;
   readonly userId: string;
 }) {
   const [selectedMenu, setSelectedMenu] = useState(agentMenu[0].id);
@@ -99,6 +101,7 @@ export default function AgentDetailView({
             agentDetails={agentDetails}
             userId={userId}
             personas={personas}
+            organizations={organizations}
           />
         )}
 

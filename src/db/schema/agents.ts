@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { aiModels } from "./models";
+import { organizations } from "./organizations";
 import { personas } from "./personas";
 import { users } from "./users";
 
@@ -24,6 +25,9 @@ export const agents = pgTable("agents", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "set null",
+  }),
   personaId: uuid("persona_id").references(() => personas.id, {
     onDelete: "set null",
   }),
@@ -39,7 +43,7 @@ export const agents = pgTable("agents", {
       onDelete: "restrict",
     }),
   temperature: real("temperature").notNull().default(0.7),
-  topP: real("top_p").notNull().default(1.0),
+  topP: real("top_p").notNull().default(1),
   similarityThreshold: real("similarity_threshold").notNull().default(0.5),
   topK: real("top_k").notNull().default(5),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

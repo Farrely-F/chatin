@@ -21,15 +21,17 @@ export default function EditAgentDialog({
   agentDetails,
   models,
   personas,
+  organizations,
   userId,
   disabled,
-}: {
+}: Readonly<{
   agentDetails: AgentDetails;
   models: ModelDetails[];
   personas: PersonaDetails[];
+  organizations: Array<{ id: string; name: string }>;
   userId: string;
   disabled: boolean;
-}) {
+}>) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   return (
@@ -49,6 +51,7 @@ export default function EditAgentDialog({
           <EditAgenConfig
             models={models}
             personas={personas}
+            organizations={organizations}
             agentDetails={agentDetails}
             userId={userId}
             callback={() => setIsDialogOpen(false)}

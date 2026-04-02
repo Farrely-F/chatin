@@ -257,9 +257,6 @@ export default function Chat({
 
     transport: new DefaultChatTransport({
       api: `/api/v1/agents/${agentDetails.id}/public/chat/stream`,
-      body: {
-        user_id: agentDetails?.userId,
-      },
     }),
   });
 

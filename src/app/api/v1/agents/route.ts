@@ -1,8 +1,6 @@
-import { db } from "@/db";
-import { agents } from "@/db/schema";
 import { withAuth } from "@/middleware/api-middleware";
+import { getAllAgentWithModel } from "@/service/agents";
 import { ApiHandlerArgs } from "@/types/api";
-import { and, eq, ilike } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 type SearchParams = {
@@ -25,19 +23,24 @@ async function handler(...args: ApiHandlerArgs) {
 
   const { name, status, model_id } = searchParams as SearchParams;
 
-  const conditions = [];
-  if (name) conditions.push(ilike(agents.name, `%${name}%`));
-  if (status) conditions.push(eq(agents.status, status));
-  if (model_id) conditions.push(eq(agents.modelId, model_id));
-
   try {
-    const results = await db.query.agents.findMany({
-      with: {
-        model: true,
-      },
-      where: conditions.length
-        ? and(eq(agents.userId, req.authorized.userId), ...conditions)
-        : undefined,
+    const tenantScopedAgents = await getAllAgentWithModel(
+      req.authorized.userId,
+    );
+    const results = (tenantScopedAgents ?? []).filter((agent) => {
+      if (name && !agent.name.toLowerCase().includes(name.toLowerCase())) {
+        return false;
+      }
+
+      if (status && agent.status !== status) {
+        return false;
+      }
+
+      if (model_id && agent.modelId !== model_id) {
+        return false;
+      }
+
+      return true;
     });
 
     return NextResponse.json({ status: true, data: results }, { status: 200 });

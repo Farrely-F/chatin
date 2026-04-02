@@ -13,3 +13,5 @@ export * from "./models";
 export * from "./agent-response-feedback";
 export * from "./agent-usage-logs";
 export * from "./system-settings";
+export * from "./organizations";
+export * from "./organization-user-roles";

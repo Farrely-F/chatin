@@ -3,23 +3,42 @@
 import { db } from "@/db";
 import { agents, personas } from "@/db/schema";
 import { CreatePersonaSchema } from "@/schema/persona-schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { getPrimaryOrganizationForUser } from "./organizations";
+
+function withPersonaScope(userId: string, organizationId?: string) {
+  if (organizationId) {
+    return or(
+      eq(personas.organizationId, organizationId),
+      and(isNull(personas.organizationId), eq(personas.userId, userId)),
+    );
+  }
+
+  return eq(personas.userId, userId);
+}
+
 export async function getAllPersonas(userId: string) {
+  const organization = await getPrimaryOrganizationForUser(userId);
+
   const res = await db
     .select()
     .from(personas)
-    .where(eq(personas.userId, userId));
+    .where(withPersonaScope(userId, organization?.id));
   return res ?? [];
 }
 
 export async function getPersonaById(id: string, userId: string) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     const [res] = await db
       .select()
       .from(personas)
-      .where(and(eq(personas.userId, userId), eq(personas.id, id)))
+      .where(
+        and(withPersonaScope(userId, organization?.id), eq(personas.id, id)),
+      )
       .limit(1);
 
     if (!res) {
@@ -41,7 +60,12 @@ export async function createAgentPersona(
   userId: string,
   data: CreatePersonaSchema,
 ) {
-  const res = await db.insert(personas).values({ ...data, userId: userId });
+  const organization = await getPrimaryOrganizationForUser(userId);
+  const res = await db.insert(personas).values({
+    ...data,
+    userId: userId,
+    organizationId: organization?.id,
+  });
 
   if (!res) {
     return {
@@ -63,10 +87,17 @@ export async function editAgentPersona(
   data: CreatePersonaSchema,
 ) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     await db
       .update(personas)
       .set({ ...data })
-      .where(and(eq(personas.id, personaId), eq(personas.userId, userId)));
+      .where(
+        and(
+          eq(personas.id, personaId),
+          withPersonaScope(userId, organization?.id),
+        ),
+      );
 
     revalidatePath(`/dashboard/personas/${personaId}`);
     revalidatePath("/dashboard/agents");
@@ -84,9 +115,16 @@ export async function editAgentPersona(
 
 export async function deletePersona(userId: string, personaId: string) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     await db
       .delete(personas)
-      .where(and(eq(personas.userId, userId), eq(personas.id, personaId)));
+      .where(
+        and(
+          withPersonaScope(userId, organization?.id),
+          eq(personas.id, personaId),
+        ),
+      );
 
     revalidatePath("/dashboard/agents");
 
@@ -102,10 +140,22 @@ export async function deletePersona(userId: string, personaId: string) {
 }
 
 export async function allAgentByPersonaId(userId: string, personaId: string) {
+  const organization = await getPrimaryOrganizationForUser(userId);
+
   const res = await db
     .select()
     .from(agents)
-    .where(and(eq(agents.userId, userId), eq(agents.personaId, personaId)));
+    .where(
+      and(
+        eq(agents.personaId, personaId),
+        organization?.id
+          ? or(
+              eq(agents.organizationId, organization.id),
+              and(isNull(agents.organizationId), eq(agents.userId, userId)),
+            )
+          : eq(agents.userId, userId),
+      ),
+    );
 
   return res || [];
 }

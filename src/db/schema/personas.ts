@@ -1,5 +1,6 @@
 import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
+import { organizations } from "./organizations";
 import { users } from "./users";
 
 export const emojiUsageEnum = pgEnum("emoji_usage", [
@@ -28,6 +29,9 @@ export const personas = pgTable("personas", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "set null",
+  }),
   avatar: text("avatar"),
   name: text("name").notNull(),
   sex: sexEnum("sex").default("neutral"),

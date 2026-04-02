@@ -32,8 +32,12 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsageCharts } from "@/features/monitoring/usage-charts";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { hasPermission } from "@/lib/check-permission";
 import { getAgentUsageMonitoring } from "@/service/monitoring";
+import { getAllOrganizationsWithMembers } from "@/service/organizations";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +48,7 @@ type MonitoringSearchParams = Promise<{
   provider?: string | string[];
   source?: string | string[];
   cache?: string | string[];
+  organization?: string | string[];
 }>;
 
 function getFirstParam(value?: string | string[]): string | undefined {
@@ -120,60 +125,34 @@ function formatRatio(value: number): string {
   return `${value.toFixed(2)}x`;
 }
 
-export default async function MonitoringPage({
-  searchParams,
-}: {
-  readonly searchParams: MonitoringSearchParams;
-}) {
-  const params = await searchParams;
+type MonitoringPayload = Awaited<ReturnType<typeof getAgentUsageMonitoring>>;
+type RecentCall = MonitoringPayload["recentCalls"][number];
 
-  const now = new Date();
-  const defaultTo = new Date(now);
-  defaultTo.setUTCHours(23, 59, 59, 999);
+function filterRecentCalls(
+  calls: RecentCall[],
+  filters: {
+    providerParam?: string;
+    sourceParam?: string;
+    cacheParam: "all" | "hit" | "miss";
+    queryParam?: string;
+  },
+): RecentCall[] {
+  const queryLower = filters.queryParam?.toLowerCase();
 
-  const defaultFrom = new Date(defaultTo);
-  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
-  defaultFrom.setUTCHours(0, 0, 0, 0);
-
-  const fromParam = getFirstParam(params.from);
-  const toParam = getFirstParam(params.to);
-  const queryParam = normalizeTextParam(getFirstParam(params.q));
-  const providerParam = normalizeSelectParam(getFirstParam(params.provider));
-  const sourceParam = normalizeSelectParam(getFirstParam(params.source));
-  const cacheParam = parseCacheFilterParam(getFirstParam(params.cache));
-
-  const from = parseDateParam(fromParam, false) ?? defaultFrom;
-  const to = parseDateParam(toParam, true) ?? defaultTo;
-
-  const safeRange =
-    from <= to ? { from, to } : { from: defaultFrom, to: defaultTo };
-
-  const monitoring = await getAgentUsageMonitoring(safeRange);
-
-  const providerOptions = Array.from(
-    new Set(monitoring.recentCalls.map((call) => call.provider)),
-  ).sort((a, b) => a.localeCompare(b));
-
-  const sourceOptions = Array.from(
-    new Set(monitoring.recentCalls.map((call) => call.source)),
-  ).sort((a, b) => a.localeCompare(b));
-
-  const queryLower = queryParam?.toLowerCase();
-
-  const filteredRecentCalls = monitoring.recentCalls.filter((call) => {
-    if (providerParam && call.provider !== providerParam) {
+  return calls.filter((call) => {
+    if (filters.providerParam && call.provider !== filters.providerParam) {
       return false;
     }
 
-    if (sourceParam && call.source !== sourceParam) {
+    if (filters.sourceParam && call.source !== filters.sourceParam) {
       return false;
     }
 
-    if (cacheParam === "hit" && call.cacheHitRate <= 0) {
+    if (filters.cacheParam === "hit" && call.cacheHitRate <= 0) {
       return false;
     }
 
-    if (cacheParam === "miss" && call.cacheHitRate > 0) {
+    if (filters.cacheParam === "miss" && call.cacheHitRate > 0) {
       return false;
     }
 
@@ -192,13 +171,184 @@ export default async function MonitoringPage({
 
     return searchTarget.includes(queryLower);
   });
+}
+
+function TopOrganizationsSpendCard({
+  rows,
+}: {
+  readonly rows: MonitoringPayload["topOrganizationsBySpend"];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Organizations by Spend</CardTitle>
+        <CardDescription>
+          Highest spending organizations in the selected range.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No organization spend in this date range.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Organization</TableHead>
+                <TableHead>Requests</TableHead>
+                <TableHead>Total Tokens</TableHead>
+                <TableHead>Spend (USD)</TableHead>
+                <TableHead>Spend (IDR)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.organizationId}>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <span>{row.organizationName}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {row.organizationSlug}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{row.requests.toLocaleString()}</TableCell>
+                  <TableCell>{row.totalTokens.toLocaleString()}</TableCell>
+                  <TableCell>{formatCurrencyUsd(row.spendUsd)}</TableCell>
+                  <TableCell>{formatCurrencyIdr(row.spendIdr)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopUsersSpendCard({
+  rows,
+}: {
+  readonly rows: MonitoringPayload["topUsersBySpend"];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Users by Spend</CardTitle>
+        <CardDescription>
+          Highest spending authenticated users in the selected range.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No authenticated user spend in this date range.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Requests</TableHead>
+                <TableHead>Total Tokens</TableHead>
+                <TableHead>Spend (USD)</TableHead>
+                <TableHead>Spend (IDR)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.requestUserId}>
+                  <TableCell>{row.requestUserId}</TableCell>
+                  <TableCell>{row.requests.toLocaleString()}</TableCell>
+                  <TableCell>{row.totalTokens.toLocaleString()}</TableCell>
+                  <TableCell>{formatCurrencyUsd(row.spendUsd)}</TableCell>
+                  <TableCell>{formatCurrencyIdr(row.spendIdr)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default async function MonitoringPage({
+  searchParams,
+}: {
+  readonly searchParams: MonitoringSearchParams;
+}) {
+  const user = await getCurrentUser();
+  const userId = user?.id ?? "";
+
+  const params = await searchParams;
+
+  const now = new Date();
+  const defaultTo = new Date(now);
+  defaultTo.setUTCHours(23, 59, 59, 999);
+
+  const defaultFrom = new Date(defaultTo);
+  defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
+  defaultFrom.setUTCHours(0, 0, 0, 0);
+
+  const fromParam = getFirstParam(params.from);
+  const toParam = getFirstParam(params.to);
+  const queryParam = normalizeTextParam(getFirstParam(params.q));
+  const providerParam = normalizeSelectParam(getFirstParam(params.provider));
+  const sourceParam = normalizeSelectParam(getFirstParam(params.source));
+  const cacheParam = parseCacheFilterParam(getFirstParam(params.cache));
+  const organizationParam = normalizeSelectParam(
+    getFirstParam(params.organization),
+  );
+
+  const from = parseDateParam(fromParam, false) ?? defaultFrom;
+  const to = parseDateParam(toParam, true) ?? defaultTo;
+
+  const safeRange =
+    from <= to ? { from, to } : { from: defaultFrom, to: defaultTo };
+
+  const hasSystemAccess = await hasPermission(userId, "system.read");
+
+  if (!hasSystemAccess) {
+    redirect("/dashboard/monitoring/organization");
+  }
+
+  const monitoring = await getAgentUsageMonitoring(
+    safeRange,
+    organizationParam,
+  );
+
+  const organizationsResult = await getAllOrganizationsWithMembers(userId);
+  const organizationOptions =
+    "error" in organizationsResult
+      ? []
+      : organizationsResult.map((organization) => ({
+          id: organization.id,
+          name: organization.name,
+        }));
+
+  const providerOptions = Array.from(
+    new Set(monitoring.recentCalls.map((call) => call.provider)),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const sourceOptions = Array.from(
+    new Set(monitoring.recentCalls.map((call) => call.source)),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredRecentCalls = filterRecentCalls(monitoring.recentCalls, {
+    providerParam,
+    sourceParam,
+    cacheParam,
+    queryParam,
+  });
 
   const topAgentEfficiency = monitoring.agentEfficiency.slice(0, 10);
   const topProviderModels = monitoring.providerModelComparison.slice(0, 10);
 
   return (
-    <PageLayout className="container mx-auto space-y-8">
-      <PageLayoutHeader className="space-y-3 pt-10">
+    <PageLayout className="space-y-8">
+      <PageLayoutHeader className="container mx-auto space-y-3 pt-10">
         <h1 className="text-3xl font-bold tracking-tight">
           Agent Usage Monitoring
         </h1>
@@ -251,6 +401,30 @@ export default async function MonitoringPage({
               placeholder="Select end date"
               maxYear={new Date().getFullYear() + 1}
             />
+          </label>
+
+          <label className="text-sm">
+            <span className="mb-1 block text-muted-foreground">
+              Organization
+            </span>
+            <Select
+              name="organization"
+              defaultValue={organizationParam ?? "all"}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="All organizations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All organizations</SelectItem>
+                  {organizationOptions.map((organization) => (
+                    <SelectItem key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </label>
 
           <Button type="submit" className="h-9">
@@ -625,44 +799,9 @@ export default async function MonitoringPage({
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Users by Spend</CardTitle>
-            <CardDescription>
-              Highest spending authenticated users in the selected range.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {monitoring.topUsersBySpend.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No authenticated user spend in this date range.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Requests</TableHead>
-                    <TableHead>Total Tokens</TableHead>
-                    <TableHead>Spend (USD)</TableHead>
-                    <TableHead>Spend (IDR)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {monitoring.topUsersBySpend.map((row) => (
-                    <TableRow key={row.requestUserId}>
-                      <TableCell>{row.requestUserId}</TableCell>
-                      <TableCell>{row.requests.toLocaleString()}</TableCell>
-                      <TableCell>{row.totalTokens.toLocaleString()}</TableCell>
-                      <TableCell>{formatCurrencyUsd(row.spendUsd)}</TableCell>
-                      <TableCell>{formatCurrencyIdr(row.spendIdr)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        <TopOrganizationsSpendCard rows={monitoring.topOrganizationsBySpend} />
+
+        <TopUsersSpendCard rows={monitoring.topUsersBySpend} />
 
         <Card>
           <CardHeader>
@@ -685,6 +824,13 @@ export default async function MonitoringPage({
                 name="to"
                 value={toDateInputValue(safeRange.to)}
               />
+              {organizationParam ? (
+                <input
+                  type="hidden"
+                  name="organization"
+                  value={organizationParam}
+                />
+              ) : null}
 
               <label className="text-sm">
                 <span className="mb-1 block text-muted-foreground">Search</span>

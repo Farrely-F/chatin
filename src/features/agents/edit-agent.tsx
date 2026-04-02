@@ -31,7 +31,11 @@ import {
   AgentFormValues,
   agentFormSchema,
 } from "@/schema/agent-schema";
-import { type AgentDetails, updateAgentById } from "@/service/agents";
+import {
+  type AgentDetails,
+  checkAgentSlugAvailability,
+  updateAgentById,
+} from "@/service/agents";
 import { ModelDetails } from "@/service/model";
 import { PersonaDetails } from "@/service/personas";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,12 +51,14 @@ export default function EditAgenConfig({
   agentDetails,
   models,
   personas,
+  organizations,
   userId,
   callback,
 }: Readonly<{
   agentDetails: AgentDetails;
   models: ModelDetails[];
   personas: PersonaDetails[];
+  organizations: Array<{ id: string; name: string }>;
   userId: string;
   callback?: () => void;
 }>) {
@@ -62,6 +68,7 @@ export default function EditAgenConfig({
     resolver: zodResolver(agentFormSchema),
     defaultValues: {
       name: agentDetails.name,
+      slug: agentDetails.slug,
       description: agentDetails.description || "",
       modelId: agentDetails.modelId || "",
       systemPrompt: agentDetails.systemPrompt || "",
@@ -70,11 +77,28 @@ export default function EditAgenConfig({
       topK: agentDetails.topK,
       topP: agentDetails.topP,
       personaId: agentDetails.personaId || undefined,
+      organizationId: agentDetails.organizationId || "",
     },
   });
 
   const editAgent = (data: AgentFormValues) => {
     startTransition(async () => {
+      const slugCheck = await checkAgentSlugAvailability(
+        userId,
+        data.slug || data.name,
+        agentDetails.id,
+      );
+
+      if (slugCheck.error) {
+        toast.error(slugCheck.error);
+        return;
+      }
+
+      if (!slugCheck.isAvailable) {
+        toast.error("Slug is already in use");
+        return;
+      }
+
       const res = await updateAgentById(agentDetails.id, userId, data);
 
       if (res.error) {
@@ -195,6 +219,22 @@ export default function EditAgenConfig({
           />
           <FormField
             control={form.control}
+            name="slug"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>🔗 Agent Slug</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="my-agent-slug" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid @sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
             name="modelId"
             render={({ field }) => (
               <FormItem>
@@ -206,6 +246,41 @@ export default function EditAgenConfig({
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="organizationId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>🏢 Related Organization</FormLabel>
+                <FormControl>
+                  <Select
+                    value={field.value || "personal"}
+                    onValueChange={(value) =>
+                      field.onChange(value === "personal" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="personal">
+                        Personal Workspace
+                      </SelectItem>
+                      {organizations.map((organization) => (
+                        <SelectItem
+                          key={organization.id}
+                          value={organization.id}
+                        >
+                          {organization.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormControl>
                 <FormMessage />
               </FormItem>

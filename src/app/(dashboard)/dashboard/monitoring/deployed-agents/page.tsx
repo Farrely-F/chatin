@@ -6,12 +6,20 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PublicDeployedAgents } from "@/features/public-deployed-agents/public-deployed-agents";
 import { getCurrentUser } from "@/lib/auth/auth";
+import { hasPermission } from "@/lib/check-permission";
 import { getPublicDeployedAgents } from "@/service/agents";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export default async function MonitoringPublicAgentsPage() {
   const user = await getCurrentUser();
-  const agents = await getPublicDeployedAgents();
+  const hasSystemAccess = await hasPermission(user?.id || "", "system.read");
+
+  if (!hasSystemAccess) {
+    redirect("/dashboard/monitoring/organization");
+  }
+
+  const agents = await getPublicDeployedAgents(undefined);
 
   return (
     <PageLayout className="container mx-auto space-y-8">

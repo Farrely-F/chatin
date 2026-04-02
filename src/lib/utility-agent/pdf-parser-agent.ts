@@ -131,6 +131,7 @@ export async function parsePdfWithAgent(
   parseModel: AgenticParseModel,
   context: {
     agentId: string;
+    organizationId?: string;
     requestUserId?: string;
   },
 ) {
@@ -218,6 +219,7 @@ export async function parsePdfWithAgent(
     await logAgentUsage({
       agentId: context.agentId,
       modelId: parseModel.id,
+      organizationId: context.organizationId,
       provider: parseModel.provider,
       requestUserId: context.requestUserId,
       source: "tool",

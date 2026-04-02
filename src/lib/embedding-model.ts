@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { aiModels, systemSettings } from "@/db/schema";
+import { agents } from "@/db/schema/agents";
 import { logAgentUsage } from "@/service/agent-usage";
 import { google } from "@ai-sdk/google";
 import { embed, embedMany } from "ai";
@@ -33,6 +34,7 @@ const DEFAULT_EMBEDDING_PROVIDER: EmbeddingProvider =
 
 type EmbeddingLogContext = {
   agentId?: string;
+  organizationId?: string;
   requestUserId?: string;
   source?: "embedding" | "tool";
 };
@@ -40,6 +42,7 @@ type EmbeddingLogContext = {
 const GOOGLE_EMBEDDING_INPUT_USD_PER_1M = 0.15;
 
 const embeddingModelIdCache = new Map<string, string | null>();
+const agentOrganizationIdCache = new Map<string, string | null>();
 let embeddingProviderCache: {
   value: EmbeddingProvider;
   expiresAt: number;
@@ -361,6 +364,23 @@ async function getActiveEmbeddingModelConfig(
   return fallbackValue;
 }
 
+async function resolveAgentOrganizationId(agentId: string) {
+  if (agentOrganizationIdCache.has(agentId)) {
+    return agentOrganizationIdCache.get(agentId) ?? null;
+  }
+
+  const [agent] = await db
+    .select({ organizationId: agents.organizationId })
+    .from(agents)
+    .where(eq(agents.id, agentId))
+    .limit(1);
+
+  const organizationId = agent?.organizationId ?? null;
+  agentOrganizationIdCache.set(agentId, organizationId);
+
+  return organizationId;
+}
+
 async function logEmbeddingUsage(
   context: EmbeddingLogContext,
   usage: {
@@ -398,9 +418,16 @@ async function logEmbeddingUsage(
       ? (usage.inputTokens / 1_000_000) * GOOGLE_EMBEDDING_INPUT_USD_PER_1M
       : undefined);
 
+  const organizationId =
+    context.organizationId ??
+    (context.agentId
+      ? await resolveAgentOrganizationId(context.agentId)
+      : undefined);
+
   await logAgentUsage({
     agentId: context.agentId,
     modelId,
+    organizationId: organizationId ?? undefined,
     provider,
     requestUserId: context.requestUserId,
     source: context.source ?? "embedding",

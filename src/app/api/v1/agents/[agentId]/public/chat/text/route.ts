@@ -1,5 +1,5 @@
 import { generateTextResponse, getLLMProvider } from "@/lib/llm";
-import { withAuth } from "@/middleware/api-middleware";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import {
   invalidPublicChatBodyMessage,
   parsePublicChatBody,
@@ -27,7 +27,25 @@ async function postHandler(
     const { messages, user_id } = body.data;
     const { agentId } = await params;
 
-    const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id ?? "");
+    const access = await canAccessAgentById(req, agentId);
+
+    if (!access.allowed || !access.userId) {
+      return NextResponse.json(
+        { status: false, error: "Agent not found" },
+        { status: 404 },
+      );
+    }
+
+    const requestUserId = access.userId;
+
+    if (user_id && user_id !== requestUserId) {
+      return NextResponse.json(
+        { status: false, error: "Unauthorized user context" },
+        { status: 403 },
+      );
+    }
+
+    const agentConfig = await getAgentWithKnowledgeBase(agentId, requestUserId);
 
     if ("error" in agentConfig) {
       return NextResponse.json({ error: agentConfig.error }, { status: 400 });
@@ -46,7 +64,7 @@ async function postHandler(
       agentConfig,
       messages,
       agentId,
-      requestUserId: user_id,
+      requestUserId,
     });
 
     if (!response) {

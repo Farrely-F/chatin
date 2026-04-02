@@ -11,7 +11,14 @@ export async function getAllPermissions() {
   return res || [];
 }
 
-export async function getPermissionById() {}
+export async function getPermissionById(id: string) {
+  const [permission] = await db
+    .select()
+    .from(permissions)
+    .where(eq(permissions.id, id));
+
+  return permission || null;
+}
 
 export async function createPermission(data: AddPermissionSchema) {
   try {
@@ -21,6 +28,31 @@ export async function createPermission(data: AddPermissionSchema) {
 
     return {
       message: "Permission created successfully",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Cannot process your request",
+    };
+  }
+}
+
+export async function updatePermission(id: string, data: AddPermissionSchema) {
+  try {
+    await db
+      .update(permissions)
+      .set({
+        name: data.name,
+        description: data.description,
+        permission: data.permission,
+        updatedAt: new Date(),
+      })
+      .where(eq(permissions.id, id));
+
+    revalidatePath("/dashboard", "layout");
+
+    return {
+      message: "Permission updated successfully",
     };
   } catch (error) {
     console.error(error);

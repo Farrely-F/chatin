@@ -91,7 +91,7 @@ export default function AgentCreation({
                 <FormItem>
                   <FormLabel>Agent Name</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} placeholder="Personal Assistant Agent" />
                   </FormControl>
                   <div className="text-xs flex items-center gap-1 truncate">
                     your deployed agent slug will be:
@@ -113,7 +113,10 @@ export default function AgentCreation({
                 <FormItem>
                   <FormLabel>Agent Description</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      {...field}
+                      placeholder="Personal assistant for daily tasks agent"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -145,7 +148,10 @@ export default function AgentCreation({
                 <FormItem>
                   <FormLabel>System Prompt</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea
+                      {...field}
+                      placeholder="You are daily task assistant agent that are...."
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

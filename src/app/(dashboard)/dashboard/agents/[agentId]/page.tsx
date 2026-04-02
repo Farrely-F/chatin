@@ -18,6 +18,7 @@ import { getCurrentUser } from "@/lib/auth/auth";
 import { getAgentFeedbackList } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
 import { getAllModels } from "@/service/model";
+import { getUserOrganizations } from "@/service/organizations";
 import { getAllPersonas } from "@/service/personas";
 import { ArrowUpRight, BotIcon, Wrench } from "lucide-react";
 import Link from "next/link";
@@ -71,12 +72,14 @@ export default async function AgentDetailPage({
     return;
   }
 
-  const [agentDetails, personas, models, feedbackRows] = await Promise.all([
-    getAgentWithKnowledgeBase(agentId, user?.id || ""),
-    getAllPersonas(user?.id || ""),
-    getAllModels(),
-    getAgentFeedbackList(agentId, user?.id || ""),
-  ]);
+  const [agentDetails, personas, models, feedbackRows, organizations] =
+    await Promise.all([
+      getAgentWithKnowledgeBase(agentId, user?.id || ""),
+      getAllPersonas(user?.id || ""),
+      getAllModels(),
+      getAgentFeedbackList(agentId, user?.id || ""),
+      getUserOrganizations(user?.id || ""),
+    ]);
 
   if ("error" in agentDetails) {
     notFound();
@@ -155,6 +158,7 @@ export default async function AgentDetailPage({
           agentKnowledgeBases={agentDetails.knowledgeBases}
           personas={personas}
           agentFeedbacks={agentFeedbacks}
+          organizations={organizations}
         />
       </PageLayoutContent>
     </PageLayout>

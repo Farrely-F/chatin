@@ -484,6 +484,7 @@ export function generateStreamResponse({
       await logAgentUsage({
         agentId,
         modelId: agentConfig.model.id,
+        organizationId: agentConfig.organizationId ?? undefined,
         provider: agentConfig.model.provider,
         requestUserId,
         source: "stream",
@@ -607,6 +608,7 @@ export async function generateTextResponse({
     await logAgentUsage({
       agentId,
       modelId: agentConfig.model.id,
+      organizationId: agentConfig.organizationId ?? undefined,
       provider: agentConfig.model.provider,
       requestUserId,
       source: "text",
@@ -627,6 +629,7 @@ export async function generateTextResponse({
     await logAgentUsage({
       agentId,
       modelId: agentConfig.model.id,
+      organizationId: agentConfig.organizationId ?? undefined,
       provider: agentConfig.model.provider,
       requestUserId,
       source: "text",

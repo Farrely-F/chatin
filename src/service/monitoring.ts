@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { agentUsageLogs, agents, aiModels } from "@/db/schema";
-import { and, desc, gte, lte, sql } from "drizzle-orm";
+import { agentUsageLogs, agents, aiModels, organizations } from "@/db/schema";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 export type MonitoringDateRange = {
   from: Date;
@@ -85,6 +85,16 @@ export type TopUserSpendRow = {
   totalTokens: number;
 };
 
+export type TopOrganizationSpendRow = {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  spendUsd: number;
+  spendIdr: number;
+  requests: number;
+  totalTokens: number;
+};
+
 export type FxRateDrift = {
   baselineFx: number;
   averageFx: number;
@@ -130,6 +140,23 @@ const betweenDates = (range: MonitoringDateRange) =>
     lte(agentUsageLogs.createdAt, range.to),
   );
 
+const scopedByOrganization = (
+  range: MonitoringDateRange,
+  organizationId?: string,
+) =>
+  organizationId
+    ? and(
+        betweenDates(range),
+        sql`(
+          ${agentUsageLogs.organizationId} = ${organizationId}
+          OR (
+            ${agentUsageLogs.organizationId} IS NULL
+            AND ${agents.organizationId} = ${organizationId}
+          )
+        )`,
+      )
+    : betweenDates(range);
+
 function normalizeNumber(value: number | null | undefined): number {
   if (!Number.isFinite(value ?? Number.NaN)) {
     return 0;
@@ -159,6 +186,7 @@ function normalizeThreshold(
 
 export async function getMonitoringSummary(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<MonitoringSummary> {
   const [row] = await db
     .select({
@@ -175,7 +203,8 @@ export async function getMonitoringSummary(
       averageLatencyMs: sql<number>`COALESCE(AVG(${agentUsageLogs.latencyMs}), 0)::double precision`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range));
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId));
 
   const totalCalls = normalizeNumber(row?.totalCalls);
   const totalInputTokens = normalizeNumber(row?.totalInputTokens);
@@ -205,6 +234,7 @@ export async function getMonitoringSummary(
 
 export async function getProviderUsage(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<ProviderUsageRow[]> {
   const rows = await db
     .select({
@@ -217,7 +247,8 @@ export async function getProviderUsage(
       costIdr: sql<number>`COALESCE(SUM(${agentUsageLogs.costIdr}), 0)::double precision`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range))
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(agentUsageLogs.provider)
     .orderBy(sql`COALESCE(SUM(${agentUsageLogs.costUsd}), 0) DESC`);
 
@@ -234,6 +265,7 @@ export async function getProviderUsage(
 
 export async function getDailyUsageTrend(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<DailyUsageRow[]> {
   const rows = await db
     .select({
@@ -244,7 +276,8 @@ export async function getDailyUsageTrend(
       costIdr: sql<number>`COALESCE(SUM(${agentUsageLogs.costIdr}), 0)::double precision`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range))
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(sql`DATE_TRUNC('day', ${agentUsageLogs.createdAt})`)
     .orderBy(sql`DATE_TRUNC('day', ${agentUsageLogs.createdAt}) ASC`);
 
@@ -259,6 +292,7 @@ export async function getDailyUsageTrend(
 
 export async function getRecentAgentCalls(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<RecentAgentCallRow[]> {
   const rows = await db
     .select({
@@ -279,7 +313,7 @@ export async function getRecentAgentCalls(
     .from(agentUsageLogs)
     .leftJoin(agents, sql`${agentUsageLogs.agentId} = ${agents.id}`)
     .leftJoin(aiModels, sql`${agentUsageLogs.modelId} = ${aiModels.id}`)
-    .where(betweenDates(range))
+    .where(scopedByOrganization(range, organizationId))
     .orderBy(desc(agentUsageLogs.createdAt))
     .limit(50);
 
@@ -308,6 +342,7 @@ export async function getRecentAgentCalls(
 
 export async function getSourceVolume(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<SourceVolumeRow[]> {
   const rows = await db
     .select({
@@ -315,7 +350,8 @@ export async function getSourceVolume(
       calls: sql<number>`COUNT(*)::int`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range))
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(agentUsageLogs.source)
     .orderBy(sql`COUNT(*) DESC`);
 
@@ -327,6 +363,7 @@ export async function getSourceVolume(
 
 export async function getHourlyUsageDistribution(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<HourlyUsageRow[]> {
   const rows = await db
     .select({
@@ -334,7 +371,8 @@ export async function getHourlyUsageDistribution(
       calls: sql<number>`COUNT(*)::int`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range))
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(sql`EXTRACT(HOUR FROM ${agentUsageLogs.createdAt})`)
     .orderBy(sql`EXTRACT(HOUR FROM ${agentUsageLogs.createdAt}) ASC`);
 
@@ -352,6 +390,7 @@ export async function getHourlyUsageDistribution(
 
 export async function getAgentEfficiency(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<AgentEfficiencyRow[]> {
   const rows = await db
     .select({
@@ -369,7 +408,7 @@ export async function getAgentEfficiency(
     })
     .from(agentUsageLogs)
     .leftJoin(agents, sql`${agentUsageLogs.agentId} = ${agents.id}`)
-    .where(betweenDates(range))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(agentUsageLogs.agentId, agents.name)
     .orderBy(sql`COALESCE(SUM(${agentUsageLogs.costUsd}), 0) DESC`);
 
@@ -390,6 +429,7 @@ export async function getAgentEfficiency(
 
 export async function getProviderModelComparison(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<ProviderModelComparisonRow[]> {
   const rows = await db
     .select({
@@ -402,8 +442,9 @@ export async function getProviderModelComparison(
       totalCostUsd: sql<number>`COALESCE(SUM(${agentUsageLogs.costUsd}), 0)::double precision`,
     })
     .from(agentUsageLogs)
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
     .leftJoin(aiModels, sql`${agentUsageLogs.modelId} = ${aiModels.id}`)
-    .where(betweenDates(range))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(agentUsageLogs.provider, agentUsageLogs.modelId, aiModels.name)
     .orderBy(sql`COALESCE(SUM(${agentUsageLogs.costUsd}), 0) DESC`);
 
@@ -420,6 +461,7 @@ export async function getProviderModelComparison(
 
 export async function getTopUsersBySpend(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<TopUserSpendRow[]> {
   const rows = await db
     .select({
@@ -430,9 +472,10 @@ export async function getTopUsersBySpend(
       totalTokens: sql<number>`COALESCE(SUM(${agentUsageLogs.totalTokens}), 0)::double precision`,
     })
     .from(agentUsageLogs)
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
     .where(
       and(
-        betweenDates(range),
+        scopedByOrganization(range, organizationId),
         sql`${agentUsageLogs.requestUserId} IS NOT NULL`,
       ),
     )
@@ -451,8 +494,59 @@ export async function getTopUsersBySpend(
     }));
 }
 
+export async function getTopOrganizationsBySpend(
+  range: MonitoringDateRange,
+  organizationId?: string,
+): Promise<TopOrganizationSpendRow[]> {
+  const rows = await db
+    .select({
+      organizationId: sql<string>`COALESCE(${agentUsageLogs.organizationId}, ${agents.organizationId})`,
+      organizationName: organizations.name,
+      organizationSlug: organizations.slug,
+      spendUsd: sql<number>`COALESCE(SUM(${agentUsageLogs.costUsd}), 0)::double precision`,
+      spendIdr: sql<number>`COALESCE(SUM(${agentUsageLogs.costIdr}), 0)::double precision`,
+      requests: sql<number>`COUNT(*)::int`,
+      totalTokens: sql<number>`COALESCE(SUM(${agentUsageLogs.totalTokens}), 0)::double precision`,
+    })
+    .from(agentUsageLogs)
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .leftJoin(
+      organizations,
+      sql`${organizations.id} = COALESCE(${agentUsageLogs.organizationId}, ${agents.organizationId})`,
+    )
+    .where(
+      and(
+        scopedByOrganization(range, organizationId),
+        sql`COALESCE(${agentUsageLogs.organizationId}, ${agents.organizationId}) IS NOT NULL`,
+      ),
+    )
+    .groupBy(
+      sql`COALESCE(${agentUsageLogs.organizationId}, ${agents.organizationId})`,
+      organizations.name,
+      organizations.slug,
+    )
+    .orderBy(sql`COALESCE(SUM(${agentUsageLogs.costUsd}), 0) DESC`)
+    .limit(10);
+
+  return rows
+    .filter((row) => Boolean(row.organizationId))
+    .map((row) => ({
+      organizationId: row.organizationId,
+      organizationName: normalizeText(
+        row.organizationName,
+        "Unknown Organization",
+      ),
+      organizationSlug: normalizeText(row.organizationSlug, "unknown"),
+      spendUsd: normalizeNumber(row.spendUsd),
+      spendIdr: normalizeNumber(row.spendIdr),
+      requests: normalizeNumber(row.requests),
+      totalTokens: normalizeNumber(row.totalTokens),
+    }));
+}
+
 export async function getFxRateDrift(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<FxRateDrift> {
   const [row] = await db
     .select({
@@ -461,7 +555,8 @@ export async function getFxRateDrift(
       maxFx: sql<number>`COALESCE(MAX(${agentUsageLogs.fxUsdToIdr}), 0)::double precision`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range));
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId));
 
   const baselineFx = normalizeThreshold(
     Number(process.env.USD_IDR_FALLBACK),
@@ -485,6 +580,7 @@ export async function getFxRateDrift(
 
 export async function getAnomalySignals(
   range: MonitoringDateRange,
+  organizationId?: string,
 ): Promise<AnomalySignals> {
   const highCostThresholdUsd = normalizeThreshold(
     Number(process.env.MONITORING_HIGH_COST_USD),
@@ -501,7 +597,8 @@ export async function getAnomalySignals(
       totalCalls: sql<number>`COUNT(*)::int`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range));
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId));
 
   const tokenP99 = normalizeNumber(p99Row?.tokenP99);
   const tokenAnomalyThreshold = Math.ceil(tokenP99);
@@ -514,14 +611,16 @@ export async function getAnomalySignals(
       highOutputRatioCallCount: sql<number>`COALESCE(SUM(CASE WHEN ${agentUsageLogs.inputTokens} > 0 AND ${agentUsageLogs.outputTokens}::double precision / ${agentUsageLogs.inputTokens} > ${highOutputRatioThreshold} THEN 1 ELSE 0 END), 0)::int`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range));
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId));
 
   const perMinuteRows = await db
     .select({
       calls: sql<number>`COUNT(*)::int`,
     })
     .from(agentUsageLogs)
-    .where(betweenDates(range))
+    .leftJoin(agents, eq(agentUsageLogs.agentId, agents.id))
+    .where(scopedByOrganization(range, organizationId))
     .groupBy(sql`DATE_TRUNC('minute', ${agentUsageLogs.createdAt})`);
 
   const minuteBuckets = perMinuteRows.map((row) => normalizeNumber(row.calls));
@@ -551,7 +650,10 @@ export async function getAnomalySignals(
   };
 }
 
-export async function getAgentUsageMonitoring(range: MonitoringDateRange) {
+export async function getAgentUsageMonitoring(
+  range: MonitoringDateRange,
+  organizationId?: string,
+) {
   const [
     summary,
     providerUsage,
@@ -562,20 +664,22 @@ export async function getAgentUsageMonitoring(range: MonitoringDateRange) {
     agentEfficiency,
     providerModelComparison,
     topUsersBySpend,
+    topOrganizationsBySpend,
     fxRateDrift,
     anomalySignals,
   ] = await Promise.all([
-    getMonitoringSummary(range),
-    getProviderUsage(range),
-    getDailyUsageTrend(range),
-    getRecentAgentCalls(range),
-    getSourceVolume(range),
-    getHourlyUsageDistribution(range),
-    getAgentEfficiency(range),
-    getProviderModelComparison(range),
-    getTopUsersBySpend(range),
-    getFxRateDrift(range),
-    getAnomalySignals(range),
+    getMonitoringSummary(range, organizationId),
+    getProviderUsage(range, organizationId),
+    getDailyUsageTrend(range, organizationId),
+    getRecentAgentCalls(range, organizationId),
+    getSourceVolume(range, organizationId),
+    getHourlyUsageDistribution(range, organizationId),
+    getAgentEfficiency(range, organizationId),
+    getProviderModelComparison(range, organizationId),
+    getTopUsersBySpend(range, organizationId),
+    getTopOrganizationsBySpend(range, organizationId),
+    getFxRateDrift(range, organizationId),
+    getAnomalySignals(range, organizationId),
   ]);
 
   return {
@@ -588,6 +692,7 @@ export async function getAgentUsageMonitoring(range: MonitoringDateRange) {
     agentEfficiency,
     providerModelComparison,
     topUsersBySpend,
+    topOrganizationsBySpend,
     fxRateDrift,
     anomalySignals,
   };

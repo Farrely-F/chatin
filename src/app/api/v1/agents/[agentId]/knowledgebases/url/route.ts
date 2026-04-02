@@ -1,16 +1,35 @@
 import { db } from "@/db";
 import { knowledgeBases } from "@/db/schema";
 import { recursiveCrawl } from "@/lib/web-crawler";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import { eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function POST(
-  req: NextRequest,
+async function postHandler(
+  req: Request & {
+    json: () => Promise<unknown>;
+    authorized?: { userId?: string };
+  },
   { params }: { params: Promise<{ agentId: string }> },
 ) {
   const { url, name, maxDepth = 2 } = await req.json();
 
   const { agentId } = await params;
+
+  const access = await canAccessAgentById(req as never, agentId);
+
+  if (!access.allowed || !access.userId) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+
+  const agent = await db.query.agents.findFirst({
+    where: (a, { eq }) => eq(a.id, agentId),
+    columns: { id: true, organizationId: true },
+  });
+
+  if (!agent) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
 
   try {
     const res = await db.transaction(async (trx) => {
@@ -29,6 +48,8 @@ export async function POST(
         maxDepth,
         knowledgeBaseId,
         agentId,
+        organizationId: agent.organizationId ?? undefined,
+        requestUserId: access.userId,
         trx,
       });
 
@@ -51,3 +72,5 @@ export async function POST(
     return NextResponse.json({ error: "Crawl failed" }, { status: 500 });
   }
 }
+
+export const POST = withAuth(postHandler, "write");

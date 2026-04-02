@@ -1,57 +1,49 @@
-import { auth } from "@/lib/auth/auth";
 import { getEmbeddingCacheStats } from "@/lib/embedding-model";
 import { generateStreamResponse, getLLMProvider } from "@/lib/llm";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import { getRecentAgentFeedbackHints } from "@/service/agent-feedback";
 import { getAgentWithKnowledgeBase } from "@/service/agents";
-import { verifyApiKey } from "@/service/api-key";
+import { ApiHandlerArgs } from "@/types/api";
 import { UIMessage } from "ai";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-const AUHTORIZED_DOMAIN = process.env.AUTHORIZED_DOMAIN ?? "";
+async function postHandler(...args: ApiHandlerArgs) {
+  const [req, { params }] = args;
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> },
-) {
-  const body = await req.json();
-  const host = req.headers.get("host");
-
-  const { messages, user_id } = body as {
+  const body = (await req.json()) as {
     messages: UIMessage[];
     user_id?: string;
   };
+
+  const { messages, user_id } = body;
   const { agentId } = await params;
 
-  const session = await auth();
-
-  if (!session?.user || !host?.includes(AUHTORIZED_DOMAIN)) {
-    const token = req.headers.get("Authorization")?.split("Bearer ")[1];
-
-    if (!token) {
-      return NextResponse.json(
-        { status: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
-
-    const isValidToken = await verifyApiKey(token);
-
-    if (!isValidToken) {
-      return NextResponse.json(
-        { status: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
-  }
-
-  if (!user_id) {
+  if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json(
-      { status: false, error: "Unauthorized" },
+      { status: false, error: "Missing messages" },
       { status: 400 },
     );
   }
 
-  const agentConfig = await getAgentWithKnowledgeBase(agentId, user_id || "");
+  const access = await canAccessAgentById(req, agentId);
+
+  if (!access.allowed || !access.userId) {
+    return NextResponse.json(
+      { status: false, error: "Agent not found" },
+      { status: 404 },
+    );
+  }
+
+  const requestUserId = access.userId;
+
+  if (user_id && user_id !== requestUserId) {
+    return NextResponse.json(
+      { status: false, error: "Unauthorized user context" },
+      { status: 403 },
+    );
+  }
+
+  const agentConfig = await getAgentWithKnowledgeBase(agentId, requestUserId);
 
   if ("error" in agentConfig) {
     return NextResponse.json(
@@ -62,35 +54,25 @@ export async function POST(
 
   if (agentConfig.model.isAvailable === false) {
     return NextResponse.json(
-      { error: "Model is not available" },
+      { status: false, error: "Model is not available" },
       { status: 400 },
     );
   }
 
   const model = getLLMProvider(agentConfig.model);
 
-  if (!messages) {
-    return NextResponse.json(
-      { status: false, error: "Missing messages" },
-      { status: 400 },
-    );
-  }
-
   const response = generateStreamResponse({
     model,
     agentConfig,
     messages,
     agentId,
-    requestUserId: user_id,
-    feedbackGuidance: await getRecentAgentFeedbackHints(agentId, user_id, 5),
+    requestUserId,
+    feedbackGuidance: await getRecentAgentFeedbackHints(
+      agentId,
+      requestUserId,
+      5,
+    ),
   });
-
-  if ("error" in response) {
-    return NextResponse.json(
-      { status: false, error: response.error },
-      { status: 500 },
-    );
-  }
 
   return response.toUIMessageStreamResponse({
     originalMessages: messages,
@@ -120,3 +102,5 @@ export async function POST(
     },
   });
 }
+
+export const POST = withAuth(postHandler, "chat");

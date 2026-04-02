@@ -16,20 +16,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Permissions } from "@/service/permissions";
 import { RoleWithPermissions } from "@/service/roles";
 import { format } from "date-fns";
-import { Eye, MoreHorizontal } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import DeleteRole from "./delete-role";
+import { EditRoleDialog } from "./edit-role-dialog";
 import { RoleDetailsDialog } from "./roles-details-dialog";
 
 interface RolesTableProps {
   roles: RoleWithPermissions[];
+  userId: string;
+  availablePermissions: Permissions[];
 }
 
-export function RolesTable({ roles }: RolesTableProps) {
+export function RolesTable({
+  roles,
+  userId,
+  availablePermissions,
+}: Readonly<RolesTableProps>) {
   const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(
+    null,
+  );
+  const [editingRole, setEditingRole] = useState<RoleWithPermissions | null>(
     null,
   );
 
@@ -88,6 +99,10 @@ export function RolesTable({ roles }: RolesTableProps) {
                       <Eye className="mr-2 h-4 w-4" />
                       View details
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setEditingRole(role)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
                       onClick={(e) => e.preventDefault()}
@@ -107,6 +122,20 @@ export function RolesTable({ roles }: RolesTableProps) {
         open={!!selectedRole}
         onOpenChange={(open) => !open && setSelectedRole(null)}
       />
+
+      {editingRole && (
+        <EditRoleDialog
+          userId={userId}
+          role={editingRole}
+          availablePermissions={availablePermissions}
+          open={!!editingRole}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingRole(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

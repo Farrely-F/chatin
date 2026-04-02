@@ -12,10 +12,15 @@ import {
   parsePdfWithAgent,
 } from "@/lib/utility-agent/pdf-parser-agent";
 import { cleanText } from "@/lib/utils";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import { eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod/v4";
+
+type AgentRouteContext = {
+  params: Promise<{ agentId: string }>;
+};
 
 const formSchema = z.object({
   file: z.instanceof(File),
@@ -119,10 +124,44 @@ function getAgenticParseErrorResponse(error: unknown) {
   return null;
 }
 
-export const POST = async (
-  req: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> },
-) => {
+async function validateActorForAgent(
+  req: Request & { authorized?: { userId?: string } },
+  agentId: string,
+  requestUserId?: string,
+) {
+  const access = await canAccessAgentById(req as never, agentId);
+
+  if (!access.allowed || !access.userId) {
+    return {
+      access: null,
+      errorResponse: NextResponse.json(
+        { status: false, error: "Agent not found" },
+        { status: 404 },
+      ),
+    };
+  }
+
+  if (requestUserId && requestUserId !== access.userId) {
+    return {
+      access: null,
+      errorResponse: NextResponse.json(
+        { status: false, error: "Unauthorized user context" },
+        { status: 403 },
+      ),
+    };
+  }
+
+  return { access, errorResponse: null };
+}
+
+async function postHandler(
+  req: Request & {
+    formData: () => Promise<FormData>;
+    headers: Headers;
+    authorized?: { userId?: string };
+  },
+  { params }: AgentRouteContext,
+) {
   const { agentId } = await params;
 
   let file: File;
@@ -148,9 +187,26 @@ export const POST = async (
   }
 
   // Verify agent exists
+  const { access, errorResponse } = await validateActorForAgent(
+    req,
+    agentId,
+    requestUserId,
+  );
+
+  if (errorResponse) {
+    return errorResponse;
+  }
+
+  if (!access?.userId) {
+    return NextResponse.json(
+      { status: false, error: "Unauthorized user context" },
+      { status: 403 },
+    );
+  }
+
   const agent = await db.query.agents.findFirst({
     where: (a, { eq }) => eq(a.id, agentId),
-    columns: { id: true },
+    columns: { id: true, organizationId: true },
   });
   if (!agent) {
     return NextResponse.json(
@@ -193,7 +249,8 @@ export const POST = async (
       } else {
         text = await parsePdfWithAgent(buffer, requireParseModel(parseModel), {
           agentId,
-          requestUserId,
+          organizationId: agent.organizationId ?? undefined,
+          requestUserId: access.userId,
         });
 
         if (!text || text.trim().length === 0) {
@@ -208,7 +265,8 @@ export const POST = async (
       });
       const embeddings = await generateMultipleEmbeddings(chunks, {
         agentId,
-        requestUserId,
+        organizationId: agent.organizationId ?? undefined,
+        requestUserId: access.userId,
         source: "embedding",
       });
 
@@ -284,4 +342,6 @@ export const POST = async (
       { status: 500 },
     );
   }
-};
+}
+
+export const POST = withAuth(postHandler, "write");

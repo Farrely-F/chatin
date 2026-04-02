@@ -17,11 +17,11 @@ export function RoleManagement({
   userId,
   roles,
   permissions,
-}: {
+}: Readonly<{
   userId: string;
   roles: RoleWithPermissions[];
   permissions: Permissions[];
-}) {
+}>) {
   return (
     <Card onClick={(e) => e.stopPropagation()}>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap">
@@ -34,7 +34,11 @@ export function RoleManagement({
         <CreateRoleDialog userId={userId} availablePermissions={permissions} />
       </CardHeader>
       <CardContent className="@container">
-        <RolesTable roles={roles} />
+        <RolesTable
+          roles={roles}
+          userId={userId}
+          availablePermissions={permissions}
+        />
       </CardContent>
     </Card>
   );

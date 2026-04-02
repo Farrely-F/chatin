@@ -24,9 +24,11 @@ import { Eye, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 
 import DeletePermission from "./delete-permission";
+import { EditPermissionDialog } from "./edit-permission-dialog";
 import { PermissionDetailsDialog } from "./permission-details-dialog";
 
 interface PermissionsTableProps {
+  userId: string;
   permissions: Permissions[];
   categories: string[];
   batchSelectIds: string[];
@@ -34,11 +36,12 @@ interface PermissionsTableProps {
 }
 
 export function PermissionsTable({
+  userId,
   permissions,
   categories,
   batchSelectIds,
   setBatchSelectIds,
-}: PermissionsTableProps) {
+}: Readonly<PermissionsTableProps>) {
   const [selectedPermission, setSelectedPermission] =
     useState<Permissions | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,10 +56,7 @@ export function PermissionsTable({
     const matchesSearch =
       permission.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       permission.permission.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (permission.description &&
-        permission.description
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()));
+      permission.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const permissionCategory = getCategory(permission.permission);
     const matchesCategory = categoryFilter
@@ -73,6 +73,14 @@ export function PermissionsTable({
       setBatchSelectIds([...batchSelectIds, permissionId]);
     }
   };
+
+  let headerCheckboxState: boolean | "indeterminate" = false;
+
+  if (batchSelectIds.length === filteredPermissions?.length) {
+    headerCheckboxState = true;
+  } else if (batchSelectIds.length > 0) {
+    headerCheckboxState = "indeterminate";
+  }
 
   return (
     <div className="space-y-4">
@@ -119,13 +127,7 @@ export function PermissionsTable({
                     );
                   }
                 }}
-                checked={
-                  batchSelectIds.length === filteredPermissions?.length
-                    ? true
-                    : batchSelectIds.length > 0
-                      ? "indeterminate"
-                      : false
-                }
+                checked={headerCheckboxState}
               />
             </TableHead>
             <TableHead>Name</TableHead>
@@ -150,7 +152,7 @@ export function PermissionsTable({
               <TableRow key={permission.id}>
                 <TableCell>
                   <Checkbox
-                    checked={batchSelectIds.some((id) => id === permission.id)}
+                    checked={batchSelectIds.includes(permission.id)}
                     onCheckedChange={() => handleBatchSelect(permission.id)}
                   />
                 </TableCell>
@@ -180,6 +182,12 @@ export function PermissionsTable({
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         View details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <EditPermissionDialog
+                          userId={userId}
+                          permission={permission}
+                        />
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={(e) => e.preventDefault()}>
                         <DeletePermission id={permission.id} />

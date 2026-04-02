@@ -9,6 +9,8 @@ interface CrawlOptions {
   maxDepth: number;
   knowledgeBaseId: string;
   agentId: string;
+  organizationId?: string;
+  requestUserId?: string;
   trx: Parameters<Parameters<typeof db.transaction>[0]>[0];
   sleepMs?: number;
 }
@@ -71,9 +73,9 @@ export function extractCleanText(html: string): string {
 
   // Collapse excessive whitespace
   let text = $("body").text();
-  text = text.replace(/\s+\n/g, "\n"); // remove trailing spaces before newlines
-  text = text.replace(/\n\s+/g, "\n"); // remove leading spaces after newlines
-  text = text.replace(/\n{2,}/g, "\n\n"); // collapse multiple newlines
+  text = text.replaceAll(/\s+\n/g, "\n"); // remove trailing spaces before newlines
+  text = text.replaceAll(/\n\s+/g, "\n"); // remove leading spaces after newlines
+  text = text.replaceAll(/\n{2,}/g, "\n\n"); // collapse multiple newlines
   text = text.trim(); // trim start/end whitespace
 
   return text;
@@ -85,7 +87,15 @@ export async function recursiveCrawl(
   depth: number,
   opts: CrawlOptions,
 ): Promise<void> {
-  const { maxDepth, knowledgeBaseId, agentId, trx, sleepMs = 200 } = opts;
+  const {
+    maxDepth,
+    knowledgeBaseId,
+    agentId,
+    organizationId,
+    requestUserId,
+    trx,
+    sleepMs = 200,
+  } = opts;
   if (depth > maxDepth || visited.has(url)) return;
   visited.add(url);
 
@@ -103,6 +113,8 @@ export async function recursiveCrawl(
   });
   const embeddings = await generateMultipleEmbeddings(chunks, {
     agentId,
+    organizationId,
+    requestUserId,
     source: "embedding",
   });
 

@@ -27,11 +27,13 @@ import {
 import { RoleDetails } from "@/service/roles";
 import { UserWithRoles } from "@/service/users";
 import { format } from "date-fns";
-import { Eye, MoreHorizontal, UserCog } from "lucide-react";
+import { Eye, KeyRound, MoreHorizontal, Pencil, UserCog } from "lucide-react";
 import { useState } from "react";
 
 import { AssignRoleDialog } from "./assign-role-dialog";
+import { ChangePasswordDialog } from "./change-password-dialog";
 import DeleteUser from "./delete-user";
+import { EditUserDialog } from "./edit-user-dialog";
 import { UserDetailsDialog } from "./user-details-dialog";
 
 interface UsersTableProps {
@@ -40,12 +42,19 @@ interface UsersTableProps {
   roles: RoleDetails[];
 }
 
-export function UsersTable({ userId, users, roles }: UsersTableProps) {
+export function UsersTable({
+  userId,
+  users,
+  roles,
+}: Readonly<UsersTableProps>) {
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
   const [userForRoleAssignment, setUserForRoleAssignment] =
     useState<UserWithRoles | null>(null);
+  const [userForEdit, setUserForEdit] = useState<UserWithRoles | null>(null);
+  const [userForPasswordUpdate, setUserForPasswordUpdate] =
+    useState<UserWithRoles | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string | "all">("all");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [authProviderFilter, setAuthProviderFilter] = useState<
     "all" | "email" | "google"
   >("all");
@@ -53,18 +62,42 @@ export function UsersTable({ userId, users, roles }: UsersTableProps) {
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.name &&
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      !!user.name?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole =
       roleFilter === "all" ||
-      (user.roles && user.roles.some((role) => role.id === roleFilter));
+      !!user.roles?.some((role) => role.id === roleFilter);
 
     const matchesAuthProvider =
       authProviderFilter === "all" || user.authProvider === authProviderFilter;
 
     return matchesSearch && matchesRole && matchesAuthProvider;
   });
+
+  const renderRoleBadges = (user: UserWithRoles) => {
+    if (!user.roles || user.roles.length === 0) {
+      return <Badge variant="outline">No roles</Badge>;
+    }
+
+    if (user.roles.length > 2) {
+      return (
+        <>
+          {user.roles.slice(0, 2).map((role) => (
+            <Badge key={role.id} variant="outline">
+              {role.name}
+            </Badge>
+          ))}
+          <Badge variant="outline">+{user.roles.length - 2} more</Badge>
+        </>
+      );
+    }
+
+    return user.roles.map((role) => (
+      <Badge key={role.id} variant="outline">
+        {role.name}
+      </Badge>
+    ));
+  };
 
   return (
     <div className="space-y-4">
@@ -145,28 +178,7 @@ export function UsersTable({ userId, users, roles }: UsersTableProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {user.roles && user.roles.length > 0 ? (
-                      user.roles.length > 2 ? (
-                        <>
-                          {user.roles.slice(0, 2).map((role) => (
-                            <Badge key={role.id} variant="outline">
-                              {role.name}
-                            </Badge>
-                          ))}
-                          <Badge variant="outline">
-                            +{user.roles.length - 2} more
-                          </Badge>
-                        </>
-                      ) : (
-                        user.roles?.map((role) => (
-                          <Badge key={role.id} variant="outline">
-                            {role.name}
-                          </Badge>
-                        ))
-                      )
-                    ) : (
-                      <Badge variant="outline">No roles</Badge>
-                    )}
+                    {renderRoleBadges(user)}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -196,6 +208,20 @@ export function UsersTable({ userId, users, roles }: UsersTableProps) {
                         Assign roles
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={() => setUserForEdit(user)}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit user
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={() => setUserForPasswordUpdate(user)}
+                      >
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        Change password
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={(e) => e.preventDefault()}
                       >
@@ -222,6 +248,20 @@ export function UsersTable({ userId, users, roles }: UsersTableProps) {
         roles={roles}
         open={!!userForRoleAssignment}
         onOpenChange={(open) => !open && setUserForRoleAssignment(null)}
+      />
+
+      <EditUserDialog
+        userId={userId}
+        user={userForEdit}
+        open={!!userForEdit}
+        onOpenChange={(open) => !open && setUserForEdit(null)}
+      />
+
+      <ChangePasswordDialog
+        userId={userId}
+        user={userForPasswordUpdate}
+        open={!!userForPasswordUpdate}
+        onOpenChange={(open) => !open && setUserForPasswordUpdate(null)}
       />
     </div>
   );

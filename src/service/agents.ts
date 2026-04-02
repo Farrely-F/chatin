@@ -3,18 +3,90 @@
 import { db } from "@/db";
 import { agents } from "@/db/schema/agents";
 import { users } from "@/db/schema/users";
-import { hasPermission } from "@/lib/check-permission";
+import { hasPermission, hasScopedPermission } from "@/lib/check-permission";
 import { slugify } from "@/lib/utils";
 import { AgentFormValues } from "@/schema/agent-schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+import {
+  getPrimaryOrganizationForUser,
+  isOrganizationMember,
+} from "./organizations";
+
+function withAgentScope(userId: string, organizationId?: string) {
+  if (organizationId) {
+    return or(
+      eq(agents.organizationId, organizationId),
+      and(isNull(agents.organizationId), eq(agents.userId, userId)),
+    );
+  }
+
+  return eq(agents.userId, userId);
+}
+
+function resolveAgentSlug(data: AgentFormValues) {
+  return slugify(data.slug || data.name);
+}
+
+async function validateOrganizationAssignment(
+  userId: string,
+  organizationId?: string,
+) {
+  if (!organizationId) {
+    return { organizationId: null };
+  }
+
+  const isMember = await isOrganizationMember(userId, organizationId);
+
+  if (!isMember) {
+    return { error: "You are not a member of the selected organization" };
+  }
+
+  return { organizationId };
+}
+
+export async function checkAgentSlugAvailability(
+  userId: string,
+  slug: string,
+  currentAgentId?: string,
+) {
+  if (!userId) {
+    return { error: "Unauthorized" };
+  }
+
+  const normalizedSlug = slugify(slug);
+
+  if (!normalizedSlug) {
+    return { error: "Invalid slug" };
+  }
+
+  const [existing] = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(eq(agents.slug, normalizedSlug))
+    .limit(1);
+
+  const isAvailable = !existing || existing.id === currentAgentId;
+
+  return {
+    slug: normalizedSlug,
+    isAvailable,
+    message: isAvailable ? "Slug is available" : "Slug is already in use",
+  };
+}
 
 export async function getAllAgents(userId: string) {
   if (!userId) {
     return;
   }
 
-  const res = await db.select().from(agents).where(eq(agents.userId, userId));
+  const organization = await getPrimaryOrganizationForUser(userId);
+
+  const res = await db
+    .select()
+    .from(agents)
+    .where(withAgentScope(userId, organization?.id));
   return res;
 }
 
@@ -23,8 +95,16 @@ export async function getAllAgentWithModel(userId: string) {
     return;
   }
 
+  const organization = await getPrimaryOrganizationForUser(userId);
+
   const res = await db.query.agents.findMany({
-    where: (agents, { eq, and }) => and(eq(agents.userId, userId)),
+    where: (agents, { eq, and, isNull, or }) =>
+      organization?.id
+        ? or(
+            eq(agents.organizationId, organization.id),
+            and(isNull(agents.organizationId), eq(agents.userId, userId)),
+          )
+        : and(eq(agents.userId, userId)),
     with: {
       model: true,
     },
@@ -37,6 +117,8 @@ export async function getAllAgentsByUserId(userId: string) {
     return;
   }
 
+  const organization = await getPrimaryOrganizationForUser(userId);
+
   const res = await db
     .select({
       id: agents.id,
@@ -44,11 +126,15 @@ export async function getAllAgentsByUserId(userId: string) {
       description: agents.description,
     })
     .from(agents)
-    .where(eq(agents.userId, userId));
+    .where(withAgentScope(userId, organization?.id));
   return res;
 }
 
-export async function getDeployedAgents() {
+export async function getDeployedAgents(userId?: string) {
+  const organization = userId
+    ? await getPrimaryOrganizationForUser(userId)
+    : undefined;
+
   const res = await db
     .select({
       id: agents.id,
@@ -57,11 +143,22 @@ export async function getDeployedAgents() {
       slug: agents.slug,
     })
     .from(agents)
-    .where(eq(agents.status, "active"));
+    .where(
+      userId
+        ? and(
+            eq(agents.status, "active"),
+            withAgentScope(userId, organization?.id),
+          )
+        : eq(agents.status, "active"),
+    );
   return res || [];
 }
 
-export async function getPublicDeployedAgents() {
+export async function getPublicDeployedAgents(userId?: string) {
+  const organization = userId
+    ? await getPrimaryOrganizationForUser(userId)
+    : undefined;
+
   const res = await db
     .select({
       id: agents.id,
@@ -76,7 +173,50 @@ export async function getPublicDeployedAgents() {
     })
     .from(agents)
     .innerJoin(users, eq(agents.userId, users.id))
-    .where(eq(agents.status, "active"))
+    .where(
+      userId
+        ? and(
+            eq(agents.status, "active"),
+            withAgentScope(userId, organization?.id),
+          )
+        : eq(agents.status, "active"),
+    )
+    .orderBy(desc(agents.createdAt));
+
+  return res || [];
+}
+
+export async function getOrganizationPublicDeployedAgents(userId: string) {
+  if (!userId) {
+    return [];
+  }
+
+  const organization = await getPrimaryOrganizationForUser(userId);
+
+  if (!organization?.id) {
+    return [];
+  }
+
+  const res = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      description: agents.description,
+      slug: agents.slug,
+      status: agents.status,
+      createdAt: agents.createdAt,
+      ownerId: users.id,
+      ownerName: users.name,
+      ownerEmail: users.email,
+    })
+    .from(agents)
+    .innerJoin(users, eq(agents.userId, users.id))
+    .where(
+      and(
+        eq(agents.status, "active"),
+        eq(agents.organizationId, organization.id),
+      ),
+    )
     .orderBy(desc(agents.createdAt));
 
   return res || [];
@@ -84,10 +224,12 @@ export async function getPublicDeployedAgents() {
 
 export async function getAgentById(id: string, userId: string) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     const [res] = await db
       .select()
       .from(agents)
-      .where(and(eq(agents.userId, userId), eq(agents.id, id)))
+      .where(and(withAgentScope(userId, organization?.id), eq(agents.id, id)))
       .limit(1);
 
     if (!res) {
@@ -128,8 +270,53 @@ export async function getAgentBySlug(slug: string) {
   }
 }
 
+export async function getAgentBySlugForUser(slug: string, userId: string) {
+  try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
+    const [res] = await db
+      .select()
+      .from(agents)
+      .where(
+        and(
+          eq(agents.slug, slug),
+          eq(agents.status, "active"),
+          organization?.id
+            ? eq(agents.organizationId, organization.id)
+            : eq(agents.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!res) {
+      return {
+        error: "Agent not found",
+      };
+    }
+
+    return res;
+  } catch (error) {
+    console.error(error);
+    return {
+      error: "Error fetching agent",
+    };
+  }
+}
+
 export async function createNewAgent(data: AgentFormValues, userId: string) {
-  const slug = slugify(data.name);
+  const organization = await getPrimaryOrganizationForUser(userId);
+  const slug = resolveAgentSlug(data);
+
+  const organizationValidation = await validateOrganizationAssignment(
+    userId,
+    data.organizationId,
+  );
+
+  if ("error" in organizationValidation) {
+    return {
+      error: organizationValidation.error,
+    };
+  }
 
   const isSlugAvailable = await db
     .select({ slug: agents.slug })
@@ -145,6 +332,7 @@ export async function createNewAgent(data: AgentFormValues, userId: string) {
   const res = await db.insert(agents).values({
     ...data,
     userId: userId,
+    organizationId: organizationValidation.organizationId ?? organization?.id,
     slug: slug,
   });
 
@@ -167,15 +355,44 @@ export async function updateAgentById(
   data: AgentFormValues,
 ) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
     const personaId = data.personaId ? data.personaId : null;
+    const slug = resolveAgentSlug(data);
+
+    const existingSlug = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(eq(agents.slug, slug))
+      .limit(1);
+
+    if (existingSlug[0] && existingSlug[0].id !== agentId) {
+      return {
+        error: "Slug already exists",
+      };
+    }
+
+    const organizationValidation = await validateOrganizationAssignment(
+      userId,
+      data.organizationId,
+    );
+
+    if ("error" in organizationValidation) {
+      return {
+        error: organizationValidation.error,
+      };
+    }
 
     await db
       .update(agents)
       .set({
         ...data,
         personaId,
+        slug,
+        organizationId: organizationValidation.organizationId,
       })
-      .where(and(eq(agents.userId, userId), eq(agents.id, agentId)));
+      .where(
+        and(withAgentScope(userId, organization?.id), eq(agents.id, agentId)),
+      );
 
     revalidatePath(`/dashboard/agents/${agentId}`);
 
@@ -206,9 +423,13 @@ export async function deleteAgentById(agentId: string, userId: string) {
       };
     }
 
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     await db
       .delete(agents)
-      .where(and(eq(agents.userId, userId), eq(agents.id, agentId)));
+      .where(
+        and(withAgentScope(userId, organization?.id), eq(agents.id, agentId)),
+      );
 
     revalidatePath("/dashboard/agents");
 
@@ -228,9 +449,19 @@ export async function getAgentWithKnowledgeBase(
   userId: string,
 ) {
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
     const agent = await db.query.agents.findFirst({
-      where: (agents, { eq, and }) =>
-        and(eq(agents.id, agentId), eq(agents.userId, userId)),
+      where: (agents, { eq, and, isNull, or }) =>
+        and(
+          eq(agents.id, agentId),
+          organization?.id
+            ? or(
+                eq(agents.organizationId, organization.id),
+                and(isNull(agents.organizationId), eq(agents.userId, userId)),
+              )
+            : eq(agents.userId, userId),
+        ),
       with: {
         knowledgeBases: true,
         personas: true,
@@ -257,10 +488,34 @@ export async function changeAgentStatus(
   const status = currentStatus === "active" ? "archived" : "active";
 
   try {
+    const organization = await getPrimaryOrganizationForUser(userId);
+
+    const [agent] = await db
+      .select({ organizationId: agents.organizationId })
+      .from(agents)
+      .where(
+        and(withAgentScope(userId, organization?.id), eq(agents.id, agentId)),
+      )
+      .limit(1);
+
+    if (!agent) {
+      return {
+        error: "Agent not found",
+      };
+    }
+
+    const updatePayload: Partial<typeof agents.$inferInsert> = { status };
+
+    if (status === "active" && organization?.id && !agent.organizationId) {
+      updatePayload.organizationId = organization.id;
+    }
+
     await db
       .update(agents)
-      .set({ status })
-      .where(and(eq(agents.userId, userId), eq(agents.id, agentId)));
+      .set(updatePayload)
+      .where(
+        and(withAgentScope(userId, organization?.id), eq(agents.id, agentId)),
+      );
 
     revalidatePath(`/dashboard/agents/${agentId}`);
 
@@ -280,14 +535,22 @@ export async function forceArchiveAgent(agentId: string, adminUserId: string) {
     return { error: "Unauthorized" };
   }
 
-  const authorized = await hasPermission(adminUserId, "system.read");
+  const isSystemAdmin = await hasPermission(adminUserId, "system.read");
+  const organization = await getPrimaryOrganizationForUser(adminUserId);
+  const hasOrgManageAccess = organization?.id
+    ? await hasScopedPermission(
+        adminUserId,
+        "organization.manage",
+        organization.id,
+      )
+    : false;
 
-  if (!authorized) {
+  if (!isSystemAdmin && !hasOrgManageAccess) {
     return { error: "Unauthorized" };
   }
 
   const [agent] = await db
-    .select({ slug: agents.slug })
+    .select({ slug: agents.slug, organizationId: agents.organizationId })
     .from(agents)
     .where(eq(agents.id, agentId))
     .limit(1);
@@ -296,13 +559,22 @@ export async function forceArchiveAgent(agentId: string, adminUserId: string) {
     return { error: "Agent not found" };
   }
 
+  if (
+    !isSystemAdmin &&
+    (!organization?.id || agent.organizationId !== organization.id)
+  ) {
+    return { error: "Unauthorized" };
+  }
+
   try {
     await db
       .update(agents)
       .set({ status: "archived" })
       .where(eq(agents.id, agentId));
 
-    revalidatePath("/dashboard/monitoring/public-agents");
+    revalidatePath("/dashboard/monitoring/deployed-agents");
+    revalidatePath("/dashboard/monitoring/organization/deployed-agents");
+    revalidatePath("/dashboard/monitoring/organization");
     revalidatePath("/dashboard/agents");
     if (agent.slug) {
       revalidatePath(`/chat/${agent.slug}`);

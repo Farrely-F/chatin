@@ -22,6 +22,7 @@ export const agentFormSchema = z.object({
   topK: z.number().min(1).optional(),
   topP: z.number().min(0.1).max(1).optional(),
   personaId: z.string().optional(),
+  organizationId: z.string().optional(),
 });
 
 export type AgentFormInput = z.input<typeof agentFormSchema>;

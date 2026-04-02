@@ -64,6 +64,27 @@
       "when": 1774920000000,
       "tag": "0008_add-agent-usage-observability",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0009_add-organizations-multitenancy",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775000100000,
+      "tag": "0010_seed-organization-permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775000200000,
+      "tag": "0011_add-organization-id-to-agent-usage-logs",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ type UsageSource = "stream" | "text" | "embedding" | "tool";
 type UsageInput = {
   agentId: string;
   modelId: string;
+  organizationId?: string;
   provider: string;
   requestUserId?: string;
   sessionId?: string;
@@ -181,6 +182,7 @@ export async function logAgentUsage(input: UsageInput) {
     await db.insert(agentUsageLogs).values({
       agentId: input.agentId,
       modelId: input.modelId,
+      organizationId: input.organizationId,
       requestUserId: input.requestUserId,
       sessionId: input.sessionId,
       agentVersion: input.agentVersion,

@@ -19,6 +19,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const hasPermission = (required?: string, userPermissions: string[] = []) => {
+  if (required === "organization.manage") {
+    return userPermissions.includes("organization.manage");
+  }
+
   if (userPermissions.includes("system.read")) return true;
   if (!required) return true;
   return userPermissions.includes(required);

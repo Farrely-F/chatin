@@ -17,8 +17,8 @@ export default async function RoleAndPermissionsPage() {
   const roles = await getAllRolesWithPermission();
 
   return (
-    <PageLayout className="container mx-auto space-y-8">
-      <PageLayoutHeader className="space-y-2 pt-10">
+    <PageLayout className="space-y-8">
+      <PageLayoutHeader className="container mx-auto space-y-2 pt-10">
         <h1 className="text-3xl font-bold tracking-tight">Access Management</h1>
         <p className="text-muted-foreground">
           Manage roles and permissions for your application.
@@ -26,8 +26,8 @@ export default async function RoleAndPermissionsPage() {
       </PageLayoutHeader>
 
       <PageLayoutContent>
-        <Tabs defaultValue="roles" className="space-y-6">
-          <TabsList>
+        <Tabs defaultValue="roles" className="space-y-6 gap-0">
+          <TabsList className="-mb-2 rounded-bl-none h-14 p-2 pb-4 px-3">
             <TabsTrigger value="roles">Roles</TabsTrigger>
             <TabsTrigger value="permissions">Permissions</TabsTrigger>
           </TabsList>

@@ -2,21 +2,40 @@ import { db } from "@/db";
 import { chunkEmbeddings, knowledgeBases } from "@/db/schema";
 import { generateMultipleEmbeddings } from "@/lib/embedding-model";
 import { splitIntoChunks } from "@/lib/text-chunker";
+import { canAccessAgentById, withAuth } from "@/middleware/api-middleware";
 import { eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function POST(
-  req: NextRequest,
+async function postHandler(
+  req: Request & {
+    json: () => Promise<unknown>;
+    authorized?: { userId?: string };
+  },
   { params }: { params: Promise<{ agentId: string }> },
 ) {
   const { title, content } = await req.json();
   const { agentId } = await params;
+
+  const access = await canAccessAgentById(req as never, agentId);
+
+  if (!access.allowed || !access.userId) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
 
   if (!title || !content) {
     return NextResponse.json(
       { error: "Missing name or text" },
       { status: 400 },
     );
+  }
+
+  const agent = await db.query.agents.findFirst({
+    where: (a, { eq }) => eq(a.id, agentId),
+    columns: { id: true, organizationId: true },
+  });
+
+  if (!agent) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
 
   try {
@@ -45,6 +64,8 @@ export async function POST(
 
       const embeddings = await generateMultipleEmbeddings(chunks, {
         agentId,
+        organizationId: agent.organizationId ?? undefined,
+        requestUserId: access.userId,
         source: "embedding",
       });
 
@@ -88,3 +109,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withAuth(postHandler, "write");

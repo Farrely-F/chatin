@@ -800,6 +800,7 @@ type ChatProps = Readonly<{
   agentDetails: AgentDetails;
   models: ModelDetails[];
   personas: PersonaDetails[];
+  organizations: Array<{ id: string; name: string }>;
   userId: string;
 }>;
 
@@ -807,6 +808,7 @@ export default function Chat({
   agentDetails,
   models,
   personas,
+  organizations,
   userId,
 }: ChatProps) {
   const router = useRouter();
@@ -1184,6 +1186,7 @@ export default function Chat({
             <EditAgentDialog
               models={models}
               personas={personas}
+              organizations={organizations}
               disabled={isPending}
               agentDetails={agentDetails}
               userId={userId}

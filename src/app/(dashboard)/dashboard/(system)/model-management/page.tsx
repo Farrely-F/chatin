@@ -22,8 +22,8 @@ export default async function ModelManagementPage() {
   );
 
   return (
-    <PageLayout className="container mx-auto">
-      <PageLayoutHeader className="space-y-2 pt-10">
+    <PageLayout>
+      <PageLayoutHeader className="container mx-auto space-y-2 pt-10">
         <h1 className="text-3xl font-bold tracking-tight">Model Management</h1>
         <p className="text-muted-foreground">Manage your LLM models</p>
       </PageLayoutHeader>

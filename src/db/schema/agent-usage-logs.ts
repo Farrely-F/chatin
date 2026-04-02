@@ -11,6 +11,7 @@ import {
 
 import { agents } from "./agents";
 import { aiModels } from "./models";
+import { organizations } from "./organizations";
 
 export const agentUsageLogs = pgTable("agent_usage_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -20,6 +21,9 @@ export const agentUsageLogs = pgTable("agent_usage_logs", {
   modelId: uuid("model_id")
     .notNull()
     .references(() => aiModels.id, { onDelete: "restrict" }),
+  organizationId: uuid("organization_id").references(() => organizations.id, {
+    onDelete: "set null",
+  }),
   requestUserId: text("request_user_id"),
   source: varchar("source", { length: 32 }).notNull().default("stream"),
   provider: varchar("provider", { length: 100 }).notNull(),

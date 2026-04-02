@@ -7,8 +7,8 @@ import ApiKeysManagement from "@/features/api-keys/api-keys-management";
 
 export default async function ApiKeysPage() {
   return (
-    <PageLayout className="container mx-auto">
-      <PageLayoutHeader className="space-y-2 pt-10">
+    <PageLayout>
+      <PageLayoutHeader className="space-y-2 pt-10 container mx-auto">
         <h1 className="text-3xl font-bold tracking-tight">Developer Options</h1>
         <p className="text-muted-foreground">Manage your credentials</p>
       </PageLayoutHeader>

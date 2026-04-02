@@ -1,5 +1,5 @@
 import { requireAuth } from "@/lib/auth/auth-guard";
-import { getAgentBySlug } from "@/service/agents";
+import { getAgentBySlugForUser } from "@/service/agents";
 import { generateId } from "ai";
 import { redirect } from "next/navigation";
 
@@ -10,9 +10,9 @@ export default async function PublicChatPage({
 }) {
   const { slug } = await params;
 
-  await requireAuth(`/api/auth/signin?callbackUrl=/chat/${slug}`);
+  const user = await requireAuth(`/api/auth/signin?callbackUrl=/chat/${slug}`);
 
-  const agent = await getAgentBySlug(slug);
+  const agent = await getAgentBySlugForUser(slug, user.id);
 
   if ("error" in agent || agent.status === "archived") {
     return redirect("/404");
