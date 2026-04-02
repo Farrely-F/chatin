@@ -10,9 +10,10 @@ import { getAllUsersWithRoles } from "@/service/users";
 
 export default async function OrganizationsPage() {
   const user = await getCurrentUser();
+  const actorUserId = user?.id || "";
 
   const [organizations, users] = await Promise.all([
-    getAllOrganizationsWithMembers(user?.id || ""),
+    getAllOrganizationsWithMembers(actorUserId),
     getAllUsersWithRoles(),
   ]);
 
@@ -31,7 +32,7 @@ export default async function OrganizationsPage() {
       </PageLayoutHeader>
       <PageLayoutContent>
         <OrganizationsManagement
-          actorUserId={user?.id || ""}
+          actorUserId={actorUserId}
           organizations={organizations}
           users={users}
         />

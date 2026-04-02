@@ -55,12 +55,20 @@ import {
   type OrganizationOverview,
   batchAssignUsersToOrganization,
   createOrganization,
+  deleteOrganization,
   forceUnassignUsersFromOrganization,
   updateOrganizationDetails,
 } from "@/service/organizations";
 import type { UserWithRoles } from "@/service/users";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MoreHorizontal, Pencil, Plus, UserMinus, Users2 } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  UserMinus,
+  Users2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -111,6 +119,7 @@ export function OrganizationsManagement({
   const [isBatchAssignOpen, setIsBatchAssignOpen] = useState(false);
   const [isForceUnassignOpen, setIsForceUnassignOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [unassignUserSearch, setUnassignUserSearch] = useState("");
   const [selectedOrganization, setSelectedOrganization] =
@@ -287,6 +296,29 @@ export function OrganizationsManagement({
     });
   };
 
+  const onDeleteOrganization = () => {
+    if (!selectedOrganization) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await deleteOrganization(
+        actorUserId,
+        selectedOrganization.id,
+      );
+
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(result.message);
+      setIsDeleteOpen(false);
+      setSelectedOrganization(null);
+      router.refresh();
+    });
+  };
+
   const openEditDialog = (organization: OrganizationOverview) => {
     setSelectedOrganization(organization);
     editForm.reset({
@@ -316,6 +348,11 @@ export function OrganizationsManagement({
     });
     setUnassignUserSearch("");
     setIsForceUnassignOpen(true);
+  };
+
+  const openDeleteDialog = (organization: OrganizationOverview) => {
+    setSelectedOrganization(organization);
+    setIsDeleteOpen(true);
   };
 
   const selectedUserIds = batchAssignForm.watch("userIds");
@@ -806,6 +843,43 @@ export function OrganizationsManagement({
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={isDeleteOpen}
+        onOpenChange={(open) => {
+          setIsDeleteOpen(open);
+
+          if (!open) {
+            setSelectedOrganization(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Organization</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. All organization memberships and
+              organization role bindings will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <span className="font-medium">Organization:</span>{" "}
+            {selectedOrganization?.name || "-"}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              disabled={isPending || !selectedOrganization}
+              onClick={onDeleteOrganization}
+            >
+              Delete Organization
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <CardContent>
         <Table>
           <TableHeader>
@@ -890,6 +964,13 @@ export function OrganizationsManagement({
                           >
                             <UserMinus className="mr-2 h-4 w-4" />
                             Unassign Users
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                            onClick={() => openDeleteDialog(organization)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Organization
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

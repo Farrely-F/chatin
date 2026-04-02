@@ -10,7 +10,11 @@ import {
   roles,
   users,
 } from "@/db/schema";
-import { hasPermission, hasScopedPermission } from "@/lib/check-permission";
+import {
+  hasPermission,
+  hasScopedPermission,
+  withPermission,
+} from "@/lib/check-permission";
 import { slugify } from "@/lib/utils";
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -848,6 +852,42 @@ export async function updateOrganizationDetails(
   revalidatePath("/dashboard/organizations");
 
   return { message: "Organization updated successfully" };
+}
+
+export async function deleteOrganization(
+  actorUserId: string,
+  organizationId: string,
+) {
+  return withPermission(
+    {
+      action: async (targetOrganizationId: string) => {
+        const [existingOrganization] = await db
+          .select({ id: organizations.id, name: organizations.name })
+          .from(organizations)
+          .where(eq(organizations.id, targetOrganizationId))
+          .limit(1);
+
+        if (!existingOrganization) {
+          return { error: "Organization not found" };
+        }
+
+        await db
+          .delete(organizations)
+          .where(eq(organizations.id, targetOrganizationId));
+
+        revalidatePath("/dashboard/organizations");
+        revalidatePath("/dashboard/workspace/organization");
+        revalidatePath("/dashboard/user-management");
+
+        return {
+          message: `Organization ${existingOrganization.name} deleted successfully`,
+        };
+      },
+      permission: "system.delete",
+      userId: actorUserId,
+    },
+    organizationId,
+  );
 }
 
 export async function removeUserFromOrganization(
